@@ -1,0 +1,11 @@
+.env
+.venv/
+.claude/
+__pycache__/
+*.pyc
+*.log
+*.err.log
+my_memos.txt
+oci-retry/*.pid
+oci-retry/*.json
+launch-success.json

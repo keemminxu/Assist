@@ -1,0 +1,21 @@
+[Unit]
+Description=OpenClaw — Claude CLI OpenAI-compatible gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/assist
+# Claude CLI 인증 정보가 들어있는 홈 디렉터리를 명시
+Environment=HOME=/home/ubuntu
+Environment=NODE_ENV=production
+# nvm 또는 시스템 node 경로에 맞게 수정
+ExecStart=/usr/bin/openclaw serve --config /home/ubuntu/assist/openclaw.config.json
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/assist/openclaw.log
+StandardError=append:/home/ubuntu/assist/openclaw.err.log
+
+[Install]
+WantedBy=multi-user.target

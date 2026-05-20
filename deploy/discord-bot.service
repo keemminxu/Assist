@@ -1,0 +1,19 @@
+[Unit]
+Description=Discord Assistant Bot (Claude via OpenClaw)
+After=network-online.target openclaw.service
+Wants=network-online.target
+Requires=openclaw.service
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/home/ubuntu/assist
+EnvironmentFile=/home/ubuntu/assist/.env
+ExecStart=/home/ubuntu/assist/.venv/bin/python /home/ubuntu/assist/bot.py
+Restart=always
+RestartSec=5
+StandardOutput=append:/home/ubuntu/assist/bot.log
+StandardError=append:/home/ubuntu/assist/bot.err.log
+
+[Install]
+WantedBy=multi-user.target
