@@ -108,12 +108,18 @@ while true; do
     break
   fi
 
-  if echo "$output" | grep -qiE "OutOfHostCapacity|Out of host capacity|capacity"; then
+  # === 에러 분류: 우선순위 순으로 검사 ===
+  if echo "$output" | grep -qiE 'TooManyRequests|"status":[[:space:]]*429'; then
+    # OCI가 사용자에게 백오프 요구 — 더 길게 쉼
+    log "⏳ API rate limit (429) — 5분 대기 후 재시도"
+    sleep 300
+    continue
+  elif echo "$output" | grep -qiE 'OutOfHostCapacity|Out of host capacity|InsufficientHostCapacity|LimitExceeded|capacity'; then
     log "⏳ capacity 부족, ${RETRY_INTERVAL_SEC}초 후 재시도"
-  elif echo "$output" | grep -qiE "TooManyRequests|rate"; then
-    log "⏳ rate limit, ${RETRY_INTERVAL_SEC}초 후 재시도"
+  elif echo "$output" | grep -qiE '"status":[[:space:]]*5[0-9][0-9]|InternalError|ServiceUnavailable|Timeout'; then
+    log "⏳ OCI 서버 일시 에러, ${RETRY_INTERVAL_SEC}초 후 재시도"
   else
-    log "🛑 다른 에러 발생, 중단합니다:"
+    log "🛑 알 수 없는 에러, 중단합니다:"
     echo "$output" | tee -a "$LOG_FILE"
     log "   → OCID/권한/SSH 키 경로를 다시 확인하세요"
     break
