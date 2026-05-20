@@ -31,7 +31,7 @@ MAX_ATTEMPTS=0              # 0 = 무한 재시도
 # 형식: "OCPU:MEMORY" 공백 구분
 # ============================================================
 SHAPE_VARIATIONS="2:12 1:6 4:24 1:12 2:6"
-USE_ROTATION=true           # true: 시도마다 사양 바꿈, false: 위 OCPUS/MEMORY_GB 고정
+USE_ROTATION=false          # true: 시도마다 사양 바꿈, false: 위 OCPUS/MEMORY_GB 고정
 
 # ============================================================
 # 로그 파일
