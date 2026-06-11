@@ -27,6 +27,7 @@ curl -X POST -H "Content-Type: application/json" -H "User-Agent: assist-routine/
 (User-Agent 헤더 필수 — 기본 curl UA는 Discord가 403으로 차단)
 
 ## 출력 형식
+사이트 이름 표기는 정확히 이 넷만 사용: **원티드, 잡코리아, 사람인, 게임잡** (오타 주의 — "사라민" 아님)
 ## 🎮 언리얼 채용 — {YYYY-MM-DD}
 **신규 {N}건**
 - **{회사}** {제목} — {한 줄 요약} <{URL}>
