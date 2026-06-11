@@ -42,8 +42,28 @@ create table if not exists heartbeat (
   last_seen timestamptz not null default now()
 );
 
+create table if not exists projects (
+  id bigint generated always as identity primary key,
+  name text not null unique,
+  status text not null default 'active',       -- active | paused | done
+  note text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists project_tasks (
+  id bigint generated always as identity primary key,
+  project_id bigint not null references projects(id) on delete cascade,
+  task text not null,
+  status text not null default 'todo',          -- todo | done
+  due_at timestamptz,
+  created_at timestamptz not null default now(),
+  done_at timestamptz
+);
+
 alter table memories enable row level security;
 alter table meals enable row level security;
 alter table job_postings enable row level security;
 alter table schedule_notes enable row level security;
 alter table heartbeat enable row level security;
+alter table projects enable row level security;
+alter table project_tasks enable row level security;

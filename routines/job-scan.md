@@ -7,8 +7,9 @@
   → 각 공고의 상세 URL은 `https://www.wanted.co.kr/wd/{id}`
 - 잡코리아 (직접, HTML): `https://www.jobkorea.co.kr/Search/?stext=언리얼` fetch 후 목록 파싱
 - 사람인 (검색 경유): WebSearch로 `site:saramin.co.kr 언리얼 채용` (jumpit.saramin.co.kr 포함)
-- 게임잡 (목록 필터): `https://www.gamejob.co.kr/recruit/joblist` fetch 후 제목에 언리얼/Unreal 포함된 것만
-  (제목에 키워드 없는 공고는 누락 가능 — 보고 말미에 한계 명시)
+- 게임잡 (프로그래머 직군 목록 필터): `https://www.gamejob.co.kr/recruit/joblist?menucode=duty&duty=1`
+  fetch 후 제목에 **언리얼/Unreal/UE5/UE4/UE** 포함된 것만 (키워드 검색 미지원이라 직군 목록을 필터링.
+  제목에 엔진명 없는 공고는 누락 가능 — 보고 말미에 한계 명시)
 
 ## 2. 중복 제거 — Supabase 커넥터 execute_sql (project_id: tuqwhjldzghnsenyhyom)로 공고마다:
 ```sql
