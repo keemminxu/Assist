@@ -7,8 +7,9 @@
 2. Google Calendar 커넥터(list_events)로 오늘 일정을 가져온다.
 3. 아래 형식으로 2000자 이내로 정리해 webhook으로 전송한다 (초과 시 나눠서 여러 번 POST):
 
-   curl -X POST -H "Content-Type: application/json" \
+   curl -X POST -H "Content-Type: application/json" -H "User-Agent: assist-routine/1.0" \
      -d '{"content":"<브리핑 내용>"}' "<WEBHOOK_BRIEFING_URL>"
+   (User-Agent 헤더 필수 — 기본 curl UA는 Discord가 403으로 차단)
 
 4. 어떤 단계든 실패하면 그 사실과 사유를 같은 webhook으로 보고한다. 침묵 금지.
 

@@ -48,6 +48,21 @@ cp .env.example .env   # 값 채우기
 - **새 테이블 추가**: `db/schema.sql`에 추가 → Supabase MCP `apply_migration`으로 적용
 - **429 빈발 시**: `.env`의 `CLAUDE_MODEL`을 `haiku`로 낮추거나 루틴 빈도 축소
 
+### 클라우드 루틴 인프라 (등록 완료, 관리: https://claude.ai/code/routines)
+
+| 루틴 | trigger_id | 스케줄 (KST/UTC) |
+|---|---|---|
+| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 |
+| job-scan | `trig_015kcr2dP6UxQ99mKfqdjyR9` | 09:00 / 00:00 |
+| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 |
+
+- **전용 클라우드 환경**: `assist` (`env_014a4KJoj4zmVsH3xAS5gwqS`) — 네트워크 "사용자 정의"
+  허용 도메인: discord(app).com, wanted/jobkorea/gamejob/saramin.co.kr, supabase.co (+ 와일드카드)
+- **교훈 두 가지** (둘 다 침묵 실패의 원인이었음):
+  1. 기본(Default) 환경은 "신뢰됨" 네트워크라 discordapp.com 아웃바운드 차단 → 루틴은 반드시 assist 환경에서
+  2. Discord webhook은 기본 curl User-Agent를 403으로 차단 → `-H "User-Agent: assist-routine/1.0"` 필수
+- **Supabase 프로젝트**: `tuqwhjldzghnsenyhyom` (이름 desk, ap-southeast-2)
+
 ## 문서
 
 - 설계: `docs/superpowers/specs/2026-06-11-assist-v2-design.md`
