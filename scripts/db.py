@@ -15,9 +15,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 
 import httpx
 from dotenv import load_dotenv
+
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8")   # Windows 콘솔(cp949) 한글 깨짐 방지
 
 
 def _client() -> httpx.Client:

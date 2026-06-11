@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import sys
 
 
 class ClaudeError(Exception):
@@ -47,8 +49,9 @@ async def run_claude(
            "--dangerously-skip-permissions"]
     if session_id:
         cmd += ["--resume", session_id]
+    env = {**os.environ, "ASSIST_PY": sys.executable}  # 비서가 db.py 호출 시 쓸 파이썬
     proc = await asyncio.create_subprocess_exec(
-        *cmd, cwd=cwd,
+        *cmd, cwd=cwd, env=env,
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE,
     )
