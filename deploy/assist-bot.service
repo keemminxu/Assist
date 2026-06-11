@@ -1,0 +1,15 @@
+[Unit]
+Description=assist discord personal assistant bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=assist
+WorkingDirectory=/opt/assist
+EnvironmentFile=/opt/assist/.env
+ExecStart=/opt/assist/.venv/bin/python -m bot.main
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
