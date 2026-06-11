@@ -5,7 +5,7 @@ __pycache__/
 *.pyc
 *.log
 *.err.log
-my_memos.txt
+.pytest_cache/
 oci-retry/*.pid
 oci-retry/*.json
 launch-success.json
