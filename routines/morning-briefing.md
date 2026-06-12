@@ -14,13 +14,28 @@
    (네이버 메일은 자동 전달 설정으로 Gmail에 들어오므로 따로 처리 불필요)
 3. Google Calendar 커넥터로 오늘(Asia/Seoul 기준) 일정을 가져온다.
    **list_calendars로 캘린더 목록을 먼저 확인하고, 모든 캘린더(개인 + 가족/공유 캘린더 포함)의 일정을 합쳐서** 보여줘라.
-4. webhook 전송 (2000자 초과 시 분할):
+4. 리마인더 — Supabase 커넥터 execute_sql (project_id: tuqwhjldzghnsenyhyom)로 두 가지를 조회:
+   ```sql
+   select note, to_char(due_at at time zone 'Asia/Seoul', 'MM/DD HH24:MI') as due,
+          due_at < now() as overdue
+   from schedule_notes
+   where done = false and due_at is not null and due_at < now() + interval '36 hours'
+   order by due_at;
+
+   select p.name, t.task, to_char(t.due_at at time zone 'Asia/Seoul', 'MM/DD HH24:MI') as due,
+          t.due_at < now() as overdue
+   from project_tasks t join projects p on p.id = t.project_id
+   where t.status != 'done' and t.due_at is not null and t.due_at < now() + interval '36 hours'
+   order by t.due_at;
+   ```
+   → 마감 지난 것(⚠️)과 36시간 내 임박(⏰)을 리마인더 섹션에 표시. 둘 다 없으면 섹션 생략.
+5. webhook 전송 (2000자 초과 시 분할):
    ```
    curl -X POST -H "Content-Type: application/json" -H "User-Agent: assist-routine/1.0" \
      -d '{"content":"<브리핑 내용>"}' "<WEBHOOK_BRIEFING_URL>"
    ```
    (User-Agent 헤더 필수 — 기본 curl UA는 Discord가 403으로 차단)
-5. 어떤 단계든 실패하면 그 사실과 사유를 같은 webhook으로 보고한다. 침묵 금지.
+6. 어떤 단계든 실패하면 그 사실과 사유를 같은 webhook으로 보고한다. 침묵 금지.
 
 ## 출력 형식 (가독성 최우선)
 ```
@@ -35,6 +50,10 @@
 **📅 오늘 일정**
 - HH:MM 일정명
 (없으면 "오늘 일정 없음")
+
+**⏰ 리마인더** (있을 때만)
+- ⚠️ 06/10 18:00 지남 — 두바이 외주: 결제 모듈 버그 수정
+- ⏰ 오늘 18:00 — 분리수거 내놓기
 
 📌 오늘 챙길 것: {한 줄, 있을 때만}
 ```
