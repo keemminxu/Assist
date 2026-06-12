@@ -9,3 +9,4 @@ __pycache__/
 oci-retry/*.pid
 oci-retry/*.json
 launch-success.json
+.gcal-sa.json
