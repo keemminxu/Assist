@@ -63,6 +63,15 @@ cp .env.example .env   # 값 채우기
   2. Discord webhook은 기본 curl User-Agent를 403으로 차단 → `-H "User-Agent: assist-routine/1.0"` 필수
 - **Supabase 프로젝트**: `tuqwhjldzghnsenyhyom` (이름 desk, ap-southeast-2)
 
+### 봇 서버 (GCP, 2026-06-12 배포)
+
+- 인스턴스: `assist-bot` / 프로젝트 `assist-bot-2606` / `us-west1-b` / e2-micro + 30GB pd-standard (Always Free)
+- 접속: `gcloud compute ssh assist-bot --zone=us-west1-b`
+- 인증: Max 구독 setup-token (1년 유효, `/opt/assist/.env`의 `CLAUDE_CODE_OAUTH_TOKEN`) — 만료 시 `claude setup-token` 재발급
+- 배포 갱신: ssh 후 `cd /opt/assist && sudo -u assist git pull && sudo systemctl restart assist-bot`
+- ⚠️ GCP 무료체험 2026-09-11 만료 — 만료 전 유료 계정 업그레이드 필요 (캘린더 9/7 리마인더 등록됨.
+  업그레이드해도 e2-micro는 Always Free라 $0, 자동 과금 없음)
+
 ## 문서
 
 - 설계: `docs/superpowers/specs/2026-06-11-assist-v2-design.md`
