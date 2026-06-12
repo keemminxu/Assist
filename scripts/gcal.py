@@ -47,6 +47,18 @@ def _client() -> tuple[httpx.Client, list[str]]:
     return client, cal_ids
 
 
+def _check(resp: httpx.Response) -> None:
+    if resp.is_error:
+        raise SystemExit(f"Calendar API {resp.status_code}: {resp.text[:300]}")
+
+
+def _norm_dt(value: str) -> str:
+    """YYYY-MM-DDTHH:MM → 초 붙여 RFC3339로 정규화."""
+    if "T" in value and len(value) == 16:
+        return value + ":00"
+    return value
+
+
 def _fmt_event(ev: dict, cal_label: str) -> str:
     start = ev.get("start", {})
     end = ev.get("end", {})
@@ -85,13 +97,13 @@ def main() -> None:
         now = datetime.now(KST)
         lines: list[tuple[str, str]] = []
         for cal in cal_ids:
-            label = cal.split("@")[0]
+            label = "가족" if cal.endswith("@group.calendar.google.com") else cal.split("@")[0]
             resp = c.get(f"/calendars/{cal}/events", params={
                 "timeMin": now.isoformat(),
                 "timeMax": (now + timedelta(days=a.days)).isoformat(),
                 "singleEvents": "true", "orderBy": "startTime", "maxResults": "50",
             })
-            resp.raise_for_status()
+            _check(resp)
             for ev in resp.json().get("items", []):
                 key = ev.get("start", {}).get("dateTime") or ev.get("start", {}).get("date", "")
                 lines.append((key, _fmt_event(ev, label)))
@@ -107,18 +119,18 @@ def main() -> None:
                     "start": {"date": a.start}, "end": {"date": a.end}}
         else:
             body = {"summary": a.summary,
-                    "start": {"dateTime": a.start, "timeZone": "Asia/Seoul"},
-                    "end": {"dateTime": a.end, "timeZone": "Asia/Seoul"}}
+                    "start": {"dateTime": _norm_dt(a.start), "timeZone": "Asia/Seoul"},
+                    "end": {"dateTime": _norm_dt(a.end), "timeZone": "Asia/Seoul"}}
         if a.desc:
             body["description"] = a.desc
         resp = c.post(f"/calendars/{cal}/events", json=body)
-        resp.raise_for_status()
+        _check(resp)
         ev = resp.json()
         print(f"등록됨: {_fmt_event(ev, cal.split('@')[0])}")
     elif a.cmd == "delete":
         cal = a.cal or cal_ids[0]
         resp = c.delete(f"/calendars/{cal}/events/{a.event_id}")
-        resp.raise_for_status()
+        _check(resp)
         print("삭제됨")
 
 
