@@ -69,6 +69,9 @@ cp .env.example .env   # 값 채우기
 - 접속: `gcloud compute ssh assist-bot --zone=us-west1-b`
 - 인증: Max 구독 setup-token (1년 유효, `/opt/assist/.env`의 `CLAUDE_CODE_OAUTH_TOKEN`) — 만료 시 `claude setup-token` 재발급
 - 배포 갱신: ssh 후 `cd /opt/assist && sudo -u assist git pull && sudo systemctl restart assist-bot`
+- 캘린더 읽기/쓰기: 서비스 계정 `assist-calendar@assist-bot-2606.iam.gserviceaccount.com`
+  (키: `/opt/assist/.gcal-sa.json`, 대상 캘린더: `.env`의 `GCAL_IDS`. 캘린더 추가 = 그 캘린더를
+  서비스 계정에 "일정 변경" 공유 후 GCAL_IDS에 ID 추가)
 - ⚠️ GCP 무료체험 2026-09-11 만료 — 만료 전 유료 계정 업그레이드 필요 (캘린더 9/7 리마인더 등록됨.
   업그레이드해도 e2-micro는 Always Free라 $0, 자동 과금 없음)
 
