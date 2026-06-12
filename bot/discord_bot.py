@@ -33,6 +33,10 @@ def create_client(settings, make_conversation) -> discord.Client:
                 or message.channel.id != settings.assist_channel_id
                 or not message.content):
             return
+        if settings.allowed_user_ids and message.author.id not in settings.allowed_user_ids:
+            log.warning("허용 목록 밖 사용자 무시: %s (%s)",
+                        message.author, message.author.id)
+            return
         conv = conversations.setdefault(message.channel.id, make_conversation())
         try:
             async with message.channel.typing():

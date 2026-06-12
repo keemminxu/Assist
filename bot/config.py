@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 class Settings:
     discord_token: str
     assist_channel_id: int
+    allowed_user_ids: frozenset[int]    # 비어 있으면 전원 허용
     supabase_url: str
     supabase_service_key: str
     claude_bin: str
@@ -24,6 +25,8 @@ class Settings:
         return cls(
             discord_token=os.environ["DISCORD_TOKEN"],
             assist_channel_id=int(os.environ["ASSIST_CHANNEL_ID"]),
+            allowed_user_ids=frozenset(
+                int(x) for x in os.getenv("ALLOWED_USER_IDS", "").split(",") if x.strip()),
             supabase_url=os.environ["SUPABASE_URL"],
             supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
             claude_bin=os.getenv("CLAUDE_BIN", "claude"),
