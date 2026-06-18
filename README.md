@@ -50,14 +50,21 @@ cp .env.example .env   # 값 채우기
 
 ### 클라우드 루틴 인프라 (등록 완료, 관리: https://claude.ai/code/routines)
 
-| 루틴 | trigger_id | 스케줄 (KST/UTC) |
-|---|---|---|
-| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 |
-| job-scan | `trig_015kcr2dP6UxQ99mKfqdjyR9` | 09:00 / 00:00 |
-| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 |
+| 루틴 | trigger_id | 스케줄 (KST/UTC) | 내용 |
+|---|---|---|---|
+| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 | 날씨·오늘일정·새벽메일·리마인더(D-N)·새벽뉴스 |
+| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 | 내일날씨·내일일정·오늘메일·리마인더·뉴스·청년정책/분양 |
+| job-scan (아침) | `trig_015kcr2dP6UxQ99mKfqdjyR9` | 09:00 / 00:00 | 언리얼 채용 6사이트, 48h 롤링 신규만 |
+| job-scan-evening | `trig_01UHBnqRTauyaYeF7CVFraEq` | 20:00 / 11:00 | 동일 (저녁분) |
 
-- **전용 클라우드 환경**: `assist` (`env_014a4KJoj4zmVsH3xAS5gwqS`) — 네트워크 "사용자 정의"
-  허용 도메인: discord(app).com, wanted/jobkorea/gamejob/saramin.co.kr, supabase.co (+ 와일드카드)
+- **DB 모델**: 리마인더는 `schedule_notes`(category=deadline/birthday/anniversary, recurring),
+  채용 중복제거는 `job_seen` 48시간 롤링(무한 누적 안 함, 매 실행 시 48h 지난 row 삭제)
+- **뉴스/청년정책/분양**은 WebSearch로 수집(소스 링크 없이 요약). 채용 6사이트:
+  원티드(API)·잡코리아·사람인·게임잡 + remotegamejobs.com·hitmarker.net (gamejobs.co/indiegamejobs.com은 403 차단으로 제외)
+- **전용 클라우드 환경**: `assist` (`env_014a4KJoj4zmVsH3xAS5gwqS`) — 네트워크 "사용자 정의" 23개 도메인
+  (discord(app)·wanted·jobkorea·gamejob·saramin·supabase·open-meteo·wttr.in·remotegamejobs·hitmarker + 와일드카드)
+- **루틴 DB 접근**: Supabase MCP 커넥터(OAuth 만료) 대신 **service role 키 REST 직접 호출**
+  (루틴 prompt에 키 박힘, 2094년까지 유효). Gmail/Calendar만 MCP 커넥터 사용.
 - **교훈 두 가지** (둘 다 침묵 실패의 원인이었음):
   1. 기본(Default) 환경은 "신뢰됨" 네트워크라 discordapp.com 아웃바운드 차단 → 루틴은 반드시 assist 환경에서
   2. Discord webhook은 기본 curl User-Agent를 403으로 차단 → `-H "User-Agent: assist-routine/1.0"` 필수
