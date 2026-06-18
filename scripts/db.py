@@ -6,7 +6,8 @@
   python scripts/db.py recall 음식
   python scripts/db.py meal "제육볶음" --type lunch
   python scripts/db.py meals
-  python scripts/db.py note "금요일 치과" --due 2026-06-13T10:00:00+09:00
+  python scripts/db.py note "NC AI 공모전 마감" --due 2026-06-23T23:59:00+09:00 --category deadline
+  python scripts/db.py note "와이프 생일" --due 2026-08-14T00:00:00+09:00 --category birthday --recurring
   python scripts/db.py notes
   python scripts/db.py note-done 3
   python scripts/db.py projects
@@ -67,9 +68,12 @@ def main() -> None:
 
     sub.add_parser("meals", help="최근 식단 10건")
 
-    n = sub.add_parser("note", help="일정 메모 추가")
+    n = sub.add_parser("note", help="일정 메모 / 마감·생일·기념일 리마인더 추가")
     n.add_argument("note")
-    n.add_argument("--due", help="ISO8601 예: 2026-06-13T10:00:00+09:00")
+    n.add_argument("--due", help="ISO8601 예: 2026-06-23T23:59:00+09:00 (생일은 올해 날짜)")
+    n.add_argument("--category", default="event",
+                   choices=["event", "deadline", "birthday", "anniversary"])
+    n.add_argument("--recurring", action="store_true", help="매년 반복(생일·기념일)")
 
     sub.add_parser("notes", help="미완료 일정 메모 목록")
 
@@ -109,13 +113,15 @@ def main() -> None:
     elif a.cmd == "meals":
         _print(c.get("/meals", params={"order": "eaten_at.desc", "limit": "10"}))
     elif a.cmd == "note":
-        body = {"note": a.note}
+        body = {"note": a.note, "category": a.category, "recurring": a.recurring}
         if a.due:
             body["due_at"] = a.due
         _print(c.post("/schedule_notes", json=body))
     elif a.cmd == "notes":
-        _print(c.get("/schedule_notes", params={"done": "eq.false",
-                                                "order": "created_at.asc"}))
+        _print(c.get("/schedule_notes",
+                     params={"done": "eq.false",
+                             "select": "id,note,due_at,category,recurring",
+                             "order": "due_at.asc.nullslast"}))
     elif a.cmd == "note-done":
         _print(c.patch("/schedule_notes", params={"id": f"eq.{a.note_id}"},
                        json={"done": True}))

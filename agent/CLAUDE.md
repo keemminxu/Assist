@@ -12,7 +12,7 @@
 - 기억 검색:      `"$ASSIST_PY" ../scripts/db.py recall <키워드>`
 - 식단 기록:      `"$ASSIST_PY" ../scripts/db.py meal "<메뉴>" --type breakfast|lunch|dinner|snack`
 - 최근 식단:      `"$ASSIST_PY" ../scripts/db.py meals`
-- 일정 메모:      `"$ASSIST_PY" ../scripts/db.py note "<내용>" --due <ISO8601>`
+- 리마인더/메모:  `"$ASSIST_PY" ../scripts/db.py note "<내용>" --due <ISO8601> --category deadline|birthday|anniversary|event [--recurring]`
 - 미완료 메모:    `"$ASSIST_PY" ../scripts/db.py notes` / 완료: `note-done <id>`
 
 ## 캘린더 — 구글 캘린더 읽기/쓰기 (scripts/gcal.py)
@@ -30,11 +30,15 @@
 - 미완료 할 일:  `"$ASSIST_PY" ../scripts/db.py tasks` 또는 `tasks "<프로젝트이름>"`
 - 완료 처리:     `"$ASSIST_PY" ../scripts/db.py task-done <id>`
 
-## 메모·생각·리마인더
-- "메모해둬", "아이디어인데", "생각났는데" → 시점이 없으면 `remember --category context`로 저장
-- "리마인드해줘", "까먹지 않게", "~까지 해야 해" 처럼 **시점이 있으면** `note "<내용>" --due <ISO8601>`
-  (마감 있는 메모·할일은 아침 브리핑이 36시간 전부터 자동 리마인드한다)
-- "내 메모/생각/아이디어 보여줘" → `recall <키워드>` 또는 `notes`로 꺼내서 정리해줘라
+## 메모·생각·리마인더 (중요)
+**캘린더(약속) vs 리마인더(중요 마감)를 구분해라:**
+- 단순 약속·스케줄("내일 3시 미팅", "금요일 치과") → `gcal.py add`로 캘린더에. **리마인더 안 함.**
+- **중요한 마감·기념일**은 `note --category`로 저장 → 아침/저녁 브리핑이 **7일 전부터 D-N 카운트다운**으로 알림:
+  - 프로젝트/공모전 마감("23일까지 NC AI 공모전 마감") → `note "NC AI 공모전 마감" --due 2026-06-23T23:59:00+09:00 --category deadline`
+  - 생일·기념일("와이프 생일 8월 14일", "엄마 생신", "결혼기념일") → `note "와이프 생일" --due <올해 날짜>T00:00:00+09:00 --category birthday --recurring`
+    (--recurring은 매년 반복. 올해 날짜로 due를 넣으면 브리핑이 매년 다음 생일을 계산한다)
+- 시점 없는 생각·아이디어("메모해둬", "아이디어인데") → `remember --category context`
+- "내 메모/마감/생각 보여줘" → `notes` 또는 `recall <키워드>`로 꺼내 정리
 
 ## 행동 규칙
 1. 사용자가 먹은 것을 말하면(예: "점심에 제육 먹었어") 조용히 meal로 기록하고 짧게 확인해줘라.

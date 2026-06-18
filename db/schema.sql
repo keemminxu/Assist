@@ -17,22 +17,20 @@ create table if not exists meals (
   created_at timestamptz not null default now()
 );
 
-create table if not exists job_postings (
-  id bigint generated always as identity primary key,
-  url_hash text not null unique,
-  url text not null,
-  title text not null,
-  company text,
-  site text not null,                          -- wanted | gamejob | saramin | jobkorea
-  summary text,
-  status text not null default 'new',          -- new | reported | interested | dismissed
-  found_at timestamptz not null default now()
+-- 채용 48시간 롤링 윈도우 (무한 누적 대신 이틀짜리 중복 제거)
+create table if not exists job_seen (
+  url_hash text primary key,
+  title text,
+  site text,                                   -- wanted|jobkorea|saramin|gamejob|remotegamejobs|hitmarker
+  seen_at timestamptz not null default now()
 );
 
 create table if not exists schedule_notes (
   id bigint generated always as identity primary key,
   note text not null,
   due_at timestamptz,
+  category text not null default 'event',    -- event | deadline | birthday | anniversary
+  recurring boolean not null default false,  -- true = 매년 반복 (생일·기념일)
   done boolean not null default false,
   created_at timestamptz not null default now()
 );
@@ -62,7 +60,7 @@ create table if not exists project_tasks (
 
 alter table memories enable row level security;
 alter table meals enable row level security;
-alter table job_postings enable row level security;
+alter table job_seen enable row level security;
 alter table schedule_notes enable row level security;
 alter table heartbeat enable row level security;
 alter table projects enable row level security;
