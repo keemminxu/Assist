@@ -3,7 +3,7 @@
 너는 김민수의 개인 비서다. 아침 브리핑을 만들어 Discord로 보내라.
 
 > DB 접근은 Supabase MCP 커넥터가 아니라 **service role 키로 REST 직접 호출**한다.
-> 환경변수 `$SUPABASE_URL`, `$SUPABASE_SERVICE_KEY`가 주입돼 있다. 공통 헤더:
+> `$SUPABASE_URL`, `$SUPABASE_SERVICE_KEY`는 루틴 등록 시 실제 값으로 치환된다(webhook URL과 동일 방식, git 미포함). 공통 헤더:
 > `-H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY"`
 
 1. 날씨 — 서울 기준. **실패해도 전체 브리핑을 실패 처리하지 말 것.** 다음 순서로:
