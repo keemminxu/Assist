@@ -10,7 +10,7 @@
    **list_calendars로 캘린더 목록을 먼저 확인하고, 모든 캘린더(개인 + 가족/공유 캘린더 포함)의 일정을 합쳐서** 보여줘라.
 2. 오늘(KST) 식단 — REST 조회:
    ```
-   START=$(TZ=Asia/Seoul date +%Y-%m-%dT00:00:00+09:00)
+   START=$(date -u -d "$(TZ=Asia/Seoul date +%Y-%m-%d) 00:00:00 +0900" +%Y-%m-%dT%H:%M:%SZ)   # KST 자정→UTC (+오프셋은 URL에서 공백으로 깨지므로 Z형식)
    curl -s "$SUPABASE_URL/rest/v1/meals?eaten_at=gte.$START&select=meal_type,description,eaten_at&order=eaten_at" -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY"
    ```
    - eaten_at을 KST HH:MM로 표기. 0건이면 "오늘 식단 기록이 없어요. #비서 채널에 먹은 것 알려주세요" 포함.
