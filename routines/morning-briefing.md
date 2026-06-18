@@ -2,40 +2,37 @@
 
 너는 김민수의 개인 비서다. 아침 브리핑을 만들어 Discord로 보내라.
 
-1. 날씨 — curl로 Open-Meteo 조회 (무조건 서울 기준, 키 불필요):
+> DB 접근은 Supabase MCP 커넥터가 아니라 **service role 키로 REST 직접 호출**한다.
+> 환경변수 `$SUPABASE_URL`, `$SUPABASE_SERVICE_KEY`가 주입돼 있다. 공통 헤더:
+> `-H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY"`
+
+1. 날씨 — 서울 기준. **실패해도 전체 브리핑을 실패 처리하지 말 것.** 다음 순서로:
+   (a) Open-Meteo 시도:
    ```
-   curl -s "https://api.open-meteo.com/v1/forecast?latitude=37.57&longitude=126.98&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&hourly=precipitation_probability,precipitation,apparent_temperature,relative_humidity_2m&timezone=Asia%2FSeoul&forecast_days=1"
+   curl -s --max-time 10 "https://api.open-meteo.com/v1/forecast?latitude=37.57&longitude=126.98&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&hourly=precipitation_probability,precipitation,apparent_temperature,relative_humidity_2m&timezone=Asia%2FSeoul&forecast_days=1"
    ```
-   표기 규칙:
-   - 최저/최고기온 + 강수확률
-   - 인간 기준 한 줄 평가 — 적당함 / 더움 / 추움 / 습함 / 건조함 중에서 (체감온도·습도로 판단, 조합 가능: "덥고 습함")
-   - 비가 온다면 hourly precipitation으로 **몇 시부터 몇 시까지** 오는지 표기 (예: "☔ 14시~19시 비")
+   (b) 빈 응답이거나 `"error":true`(429 등)면 5초 후 **1회 재시도**.
+   (c) 그래도 실패면 폴백: `curl -s --max-time 10 "https://wttr.in/Seoul?format=j1"` (today = weather[0], maxtempC/mintempC/hourly chanceofrain 사용).
+   (d) 둘 다 실패면 날씨 줄만 `🌤 서울 날씨 일시 조회 불가`로 적고 **나머지는 정상 진행**.
+   표기: 최저/최고기온 + 강수확률 + 인간 기준 한 줄 평가(적당함/더움/추움/습함/건조함, 조합 가능) + 비 오면 "☔ HH시~HH시 비".
 2. Gmail 커넥터(search_threads)로 지난 24시간 수신 메일을 조회한다.
    (네이버 메일은 자동 전달 설정으로 Gmail에 들어오므로 따로 처리 불필요)
 3. Google Calendar 커넥터로 오늘(Asia/Seoul 기준) 일정을 가져온다.
    **list_calendars로 캘린더 목록을 먼저 확인하고, 모든 캘린더(개인 + 가족/공유 캘린더 포함)의 일정을 합쳐서** 보여줘라.
-4. 리마인더 — Supabase 커넥터 execute_sql (project_id: tuqwhjldzghnsenyhyom)로 두 가지를 조회:
-   ```sql
-   select note, to_char(due_at at time zone 'Asia/Seoul', 'MM/DD HH24:MI') as due,
-          due_at < now() as overdue
-   from schedule_notes
-   where done = false and due_at is not null and due_at < now() + interval '36 hours'
-   order by due_at;
-
-   select p.name, t.task, to_char(t.due_at at time zone 'Asia/Seoul', 'MM/DD HH24:MI') as due,
-          t.due_at < now() as overdue
-   from project_tasks t join projects p on p.id = t.project_id
-   where t.status != 'done' and t.due_at is not null and t.due_at < now() + interval '36 hours'
-   order by t.due_at;
+4. 리마인더 — REST로 두 가지 조회 (now+36h 안에 마감인 것). 먼저 시각 계산:
    ```
-   → 마감 지난 것(⚠️)과 36시간 내 임박(⏰)을 리마인더 섹션에 표시. 둘 다 없으면 섹션 생략.
+   NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ); LIMIT=$(date -u -d '+36 hours' +%Y-%m-%dT%H:%M:%SZ)
+   curl -s "$SUPABASE_URL/rest/v1/schedule_notes?done=eq.false&due_at=not.is.null&due_at=lte.$LIMIT&select=note,due_at&order=due_at" -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY"
+   curl -s "$SUPABASE_URL/rest/v1/project_tasks?status=neq.done&due_at=not.is.null&due_at=lte.$LIMIT&select=task,due_at,projects(name)&order=due_at" -H "apikey: $SUPABASE_SERVICE_KEY" -H "Authorization: Bearer $SUPABASE_SERVICE_KEY"
+   ```
+   → due_at < NOW면 지난 것(⚠️), 그 외 36시간 내 임박(⏰). 시각은 KST로 변환해 표기. 둘 다 없으면 리마인더 섹션 생략.
 5. webhook 전송 (2000자 초과 시 분할):
    ```
    curl -X POST -H "Content-Type: application/json" -H "User-Agent: assist-routine/1.0" \
      -d '{"content":"<브리핑 내용>"}' "<WEBHOOK_BRIEFING_URL>"
    ```
    (User-Agent 헤더 필수 — 기본 curl UA는 Discord가 403으로 차단)
-6. 어떤 단계든 실패하면 그 사실과 사유를 같은 webhook으로 보고한다. 침묵 금지.
+6. 날씨를 제외한 단계가 실패하면 그 사실과 사유를 같은 webhook으로 보고한다. 침묵 금지.
 
 ## 출력 형식 (가독성 최우선)
 ```
