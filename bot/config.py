@@ -18,6 +18,9 @@ class Settings:
     claude_model: str
     claude_fallback_model: str
     agent_dir: str
+    diary_channel_id: int               # 0이면 코멘트 기능 비활성
+    blog_supabase_url: str              # 빈 문자열이면 비활성
+    blog_supabase_service_key: str
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -33,4 +36,7 @@ class Settings:
             claude_model=os.getenv("CLAUDE_MODEL", "sonnet"),
             claude_fallback_model=os.getenv("CLAUDE_FALLBACK_MODEL", "haiku"),
             agent_dir=os.getenv("AGENT_DIR", "agent"),
+            diary_channel_id=int(os.getenv("DIARY_CHANNEL_ID", "0") or "0"),
+            blog_supabase_url=os.getenv("BLOG_SUPABASE_URL", ""),
+            blog_supabase_service_key=os.getenv("BLOG_SUPABASE_SERVICE_KEY", ""),
         )

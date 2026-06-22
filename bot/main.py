@@ -8,6 +8,7 @@ from functools import partial
 from bot.claude_runner import run_claude
 from bot.config import Settings
 from bot.conversation import Conversation
+from bot.diary import Diary
 from bot.discord_bot import create_client
 from bot.heartbeat import heartbeat_loop
 from bot.supa import Supa
@@ -21,10 +22,16 @@ async def amain() -> None:
     s = Settings.from_env()
     supa = Supa(s.supabase_url, s.supabase_service_key)
     runner = partial(run_claude, claude_bin=s.claude_bin, cwd=s.agent_dir)
+    diary = None
+    if s.diary_channel_id and s.blog_supabase_url and s.blog_supabase_service_key:
+        diary = Diary(s.blog_supabase_url, s.blog_supabase_service_key)
+        log = logging.getLogger("assist-bot")
+        log.info("코멘트(일기) 기능 활성 | channel=%s", s.diary_channel_id)
     client = create_client(
         s,
         lambda: Conversation(runner=runner, model=s.claude_model,
                              fallback_model=s.claude_fallback_model),
+        diary=diary,
     )
     asyncio.ensure_future(heartbeat_loop(supa))
     await client.start(s.discord_token)
