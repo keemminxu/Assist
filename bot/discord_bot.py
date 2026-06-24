@@ -24,6 +24,16 @@ def _allowed(settings, user_id: int) -> bool:
     return not settings.allowed_user_ids or user_id in settings.allowed_user_ids
 
 
+def frame_prompt(settings, author_id: int, display_name: str, content: str) -> str:
+    """발신자를 첫 줄 [발신자: 이름] 태그로 붙여 에이전트가 화자를 알게 한다.
+
+    채널은 부부 공용이라 매 메시지에 누가 말하는지 명시해야 한다.
+    USER_LABELS에 매핑이 있으면 그 이름, 없으면 Discord 표시명으로 폴백.
+    """
+    sender = settings.user_labels.get(author_id) or display_name
+    return f"[발신자: {sender}]\n{content}"
+
+
 def create_client(settings, make_conversation, diary=None) -> discord.Client:
     intents = discord.Intents.default()
     intents.message_content = True
@@ -66,9 +76,11 @@ def create_client(settings, make_conversation, diary=None) -> discord.Client:
                         message.author, message.author.id)
             return
         conv = conversations.setdefault(message.channel.id, make_conversation())
+        prompt = frame_prompt(settings, message.author.id,
+                              message.author.display_name, message.content)
         try:
             async with message.channel.typing():
-                reply = await conv.ask(message.content)
+                reply = await conv.ask(prompt)
         except Exception as e:           # noqa: BLE001 — 마지막 방어선
             log.exception("메시지 처리 실패")
             reply = f"처리 중 예상 못 한 오류: {e}"

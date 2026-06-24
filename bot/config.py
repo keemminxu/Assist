@@ -12,6 +12,7 @@ class Settings:
     discord_token: str
     assist_channel_id: int
     allowed_user_ids: frozenset[int]    # 비어 있으면 전원 허용
+    user_labels: dict[int, str]         # discord id → 이름(민수/하늘). 발신자 헤더용
     supabase_url: str
     supabase_service_key: str
     claude_bin: str
@@ -30,6 +31,7 @@ class Settings:
             assist_channel_id=int(os.environ["ASSIST_CHANNEL_ID"]),
             allowed_user_ids=frozenset(
                 int(x) for x in os.getenv("ALLOWED_USER_IDS", "").split(",") if x.strip()),
+            user_labels=cls._parse_user_labels(os.getenv("USER_LABELS", "")),
             supabase_url=os.environ["SUPABASE_URL"],
             supabase_service_key=os.environ["SUPABASE_SERVICE_KEY"],
             claude_bin=os.getenv("CLAUDE_BIN", "claude"),
@@ -40,3 +42,14 @@ class Settings:
             blog_supabase_url=os.getenv("BLOG_SUPABASE_URL", ""),
             blog_supabase_service_key=os.getenv("BLOG_SUPABASE_SERVICE_KEY", ""),
         )
+
+    @staticmethod
+    def _parse_user_labels(raw: str) -> dict[int, str]:
+        """'<id>:민수,<id>:하늘' → {id: 이름}. 형식 안 맞는 항목은 무시."""
+        labels: dict[int, str] = {}
+        for pair in raw.split(","):
+            uid, sep, name = pair.partition(":")
+            uid, name = uid.strip(), name.strip()
+            if sep and uid.isdigit() and name:
+                labels[int(uid)] = name
+        return labels

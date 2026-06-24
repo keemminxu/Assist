@@ -10,7 +10,7 @@ Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하�
  스케줄 에이전트 (routines)                  Discord 대화 봇 (Python, 얇은 릴레이)
   ├─ 아침 브리핑 (메일+일정)   07:30          ├─ 메시지 수신 → claude -p 헤드리스 호출
   ├─ 채용공고 스캔 (언리얼)    09:00          ├─ 직렬 큐 + 429 백오프 + 모델 다운시프트
-  └─ 저녁 체크인 (내일일정+식단) 21:00        └─ systemd 상시 구동, Max 구독 토큰 인증
+  └─ 저녁 체크인 (내일일정+뉴스)  21:00        └─ systemd 상시 구동, Max 구독 토큰 인증
        │                                          │
        └──── Discord Webhook ───→ [Discord 채널] ←─ Gateway ─┘
 
@@ -25,7 +25,7 @@ Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하�
 | `bot/` | Discord 대화 봇 (엔트리: `python -m bot.main`) |
 | `agent/CLAUDE.md` | 비서 페르소나 — `claude -p` 가 이 디렉토리에서 실행됨 |
 | `scripts/db.py` | 비서(Claude)가 Bash로 호출하는 Supabase CLI |
-| `db/schema.sql` | 테이블 5개: memories, meals, job_postings, schedule_notes, heartbeat |
+| `db/schema.sql` | 테이블: memories, job_seen, schedule_notes, heartbeat, projects, project_tasks, shared_list, expenses (대부분 `owner` minsu/haneul/shared 컬럼 보유) |
 | `deploy/` | systemd 유닛 + GCP/Oracle 셋업 절차 |
 | `oci-retry/` | Oracle A1 capacity 재시도 스크립트 (v1에서 유지) |
 
@@ -35,7 +35,7 @@ Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하�
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env   # 값 채우기
-.venv/Scripts/python -m pytest        # 16개 테스트
+.venv/Scripts/python -m pytest        # 37개 테스트
 .venv/Scripts/python -m bot.main      # 봇 기동
 ```
 
@@ -52,13 +52,15 @@ cp .env.example .env   # 값 채우기
 
 | 루틴 | trigger_id | 스케줄 (KST/UTC) | 내용 |
 |---|---|---|---|
-| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 | 날씨·오늘일정·새벽메일·리마인더(D-N)·새벽뉴스 |
-| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 | 내일날씨·내일일정·오늘메일·리마인더·뉴스·청년정책/분양 |
+| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 | 날씨·오늘일정·새벽메일·리마인더(owner별 D-N·기념일축하)·새벽뉴스(날짜앵커) |
+| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 | 내일날씨·내일일정·오늘메일·리마인더(owner별)·뉴스(날짜앵커)·청년정책/분양·장보기·이번달지출 |
 | job-scan (아침) | `trig_015kcr2dP6UxQ99mKfqdjyR9` | 09:00 / 00:00 | 언리얼 채용 6사이트, 48h 롤링 신규만 |
 | job-scan-evening | `trig_01UHBnqRTauyaYeF7CVFraEq` | 20:00 / 11:00 | 동일 (저녁분) |
 
-- **DB 모델**: 리마인더는 `schedule_notes`(category=deadline/birthday/anniversary, recurring),
-  채용 중복제거는 `job_seen` 48시간 롤링(무한 누적 안 함, 매 실행 시 48h 지난 row 삭제)
+- **DB 모델**: 리마인더는 `schedule_notes`(category=deadline/birthday/anniversary/campaign, recurring, owner),
+  장보기·집안일은 `shared_list`(kind=grocery/chore), 가계부는 `expenses`(amount/category/owner),
+  채용 중복제거는 `job_seen` 48시간 롤링(무한 누적 안 함, 매 실행 시 48h 지난 row 삭제).
+  부부 공유: 대부분 테이블에 `owner`(minsu/haneul/shared) — 브리핑이 owner별로 묶어 표시
 - **뉴스/청년정책/분양**은 WebSearch로 수집(소스 링크 없이 요약). 채용 6사이트:
   원티드(API)·잡코리아·사람인·게임잡 + remotegamejobs.com·hitmarker.net (gamejobs.co/indiegamejobs.com은 403 차단으로 제외)
 - **전용 클라우드 환경**: `assist` (`env_014a4KJoj4zmVsH3xAS5gwqS`) — 네트워크 "사용자 정의" 23개 도메인
@@ -77,8 +79,16 @@ cp .env.example .env   # 값 채우기
 - 인증: Max 구독 setup-token (1년 유효, `/opt/assist/.env`의 `CLAUDE_CODE_OAUTH_TOKEN`) — 만료 시 `claude setup-token` 재발급
 - 배포 갱신: ssh 후 `cd /opt/assist && sudo -u assist git pull && sudo systemctl restart assist-bot`
 - 캘린더 읽기/쓰기: 서비스 계정 `assist-calendar@assist-bot-2606.iam.gserviceaccount.com`
-  (키: `/opt/assist/.gcal-sa.json`, 대상 캘린더: `.env`의 `GCAL_IDS`. 캘린더 추가 = 그 캘린더를
+  (키: `/opt/assist/.gcal-sa.json`, 대상 캘린더: `.env`의 `GCAL_IDS`(민수). 캘린더 추가 = 그 캘린더를
   서비스 계정에 "일정 변경" 공유 후 GCAL_IDS에 ID 추가)
+- **부부 멀티유저(민수+하늘)**: `#비서` 채널은 두 사람 공용. 봇이 발신자를 구분하도록 `.env`에:
+  - `ALLOWED_USER_IDS=<민수id>,<하늘id>` — 응답 허용 목록에 하늘 디스코드 id 추가
+    (⚠️ 이 목록에 없는 사용자의 `#비서` 메시지는 **응답 없이 조용히 무시**됨(서버 로그에 warning만). 하늘 id를 빠뜨리면 하늘 메시지에 봇이 답하지 않으니 주의. 목록 자체가 비면 전원 허용.)
+  - `USER_LABELS=<민수id>:민수,<하늘id>:하늘` — 봇이 매 메시지 첫 줄에 `[발신자: 이름]`을 붙여 에이전트가 화자를 안다
+  - (디스코드 user id 얻기: 설정 → 고급 → 개발자 모드 ON → 유저 우클릭 → "사용자 ID 복사")
+- **하늘 캘린더(미리 세팅, 권한은 나중에)**: `gcal.py`가 `--who minsu|wife|all` 지원. 하늘 캘린더 ID는
+  `.env`의 `GCAL_IDS_WIFE`(지금은 빈 값). 하늘이 본인 구글 캘린더를 위 서비스 계정에 "일정 변경"으로 공유하고
+  ID를 `GCAL_IDS_WIFE`에 넣으면 즉시 활성화(재배포 불필요). 빈 값이면 `--who wife`는 안내만 하고 안전 종료.
 - ⚠️ GCP 무료체험 2026-09-11 만료 — 만료 전 유료 계정 업그레이드 필요 (캘린더 9/7 리마인더 등록됨.
   업그레이드해도 e2-micro는 Always Free라 $0, 자동 과금 없음)
 
