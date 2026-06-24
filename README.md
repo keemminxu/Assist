@@ -21,7 +21,7 @@ Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하�
 
 | 위치 | 역할 |
 |---|---|
-| `routines/` | 클라우드 루틴 프롬프트 원본 (`/schedule`로 등록 — 파일 수정 후 재등록 필요) |
+| `routines/` | 클라우드 루틴 프롬프트 원본. morning/evening은 런타임에 이 .md를 직접 Read하므로 **내용 수정은 재등록 없이 다음 실행에 자동 반영**(job-scan은 아직 자체완결형) |
 | `bot/` | Discord 대화 봇 (엔트리: `python -m bot.main`) |
 | `agent/CLAUDE.md` | 비서 페르소나 — `claude -p` 가 이 디렉토리에서 실행됨 |
 | `scripts/db.py` | 비서(Claude)가 Bash로 호출하는 Supabase CLI |
@@ -43,7 +43,7 @@ cp .env.example .env   # 값 채우기
 
 - **봇 재시작**: `sudo systemctl restart assist-bot`
 - **로그**: `journalctl -u assist-bot -f`
-- **루틴 수정**: `routines/*.md` 수정 → Claude Code에서 `/schedule`로 해당 루틴 업데이트
+- **루틴 수정**: `routines/morning-briefing.md`·`evening-checkin.md`는 등록된 프롬프트가 "리포의 이 .md를 Read해서 따르라 + 비밀값 치환" 형태(repo-read)라, **.md 내용만 고치고 main에 push하면 다음 실행에 자동 반영**(재등록 불필요). 비밀값·스케줄·환경·래퍼 프롬프트 자체를 바꿀 때만 `/schedule`(RemoteTrigger update)로 재등록. job-scan은 아직 자체완결형이라 수정 시 재등록 필요
 - **봇 생존 확인**: Supabase `heartbeat` 테이블 — 30분 무신호면 저녁 체크인이 Discord로 알림
 - **새 테이블 추가**: `db/schema.sql`에 추가 → Supabase MCP `apply_migration`으로 적용
 - **429 빈발 시**: `.env`의 `CLAUDE_MODEL`을 `haiku`로 낮추거나 루틴 빈도 축소
