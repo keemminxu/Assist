@@ -66,6 +66,17 @@ def test_generic_error_twice_returns_human_message():
     assert "a" not in out and "b" not in out
 
 
+def test_reset_retry_rate_limited_continues_backoff():
+    """리셋 재시도가 한도에 걸리면 백오프를 계속해 결국 성공한다."""
+    r = FakeRunner([BrainError("x"), RateLimited("429"), RateLimited("429"), "ok"])
+    sleeps = []
+    out = run(make_brain(r, sleeps).ask("hi"))
+    assert out == "ok"
+    assert r.resets == 1                    # 리셋은 한 번만
+    assert sleeps == [30, 90]               # 백오프 계속됨
+    assert [m for _, m in r.calls] == ["sonnet", "sonnet", "sonnet", "haiku"]
+
+
 def test_serial_queue_but_backoff_outside_lock():
     """첫 메시지가 백오프 대기 중일 때 두 번째 메시지가 끼어들 수 있다."""
     order = []

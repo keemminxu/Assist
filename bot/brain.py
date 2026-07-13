@@ -51,6 +51,8 @@ class Brain:
                     await self._runner.reset()
                     try:
                         return await self._runner.ask(prompt, model=model)
+                    except RateLimited:
+                        log.warning("리셋 후 재시도도 rate limited (시도 %d)", i + 1)
                     except BrainError as e2:
                         log.error("리셋 재시도도 실패: %s", e2)
                         return ERROR_MESSAGE
@@ -105,6 +107,7 @@ class SDKRunner:
         except Exception as e:                      # noqa: BLE001 — SDK 오류 전부 BrainError로
             raw = str(e).lower()
             if any(m in raw for m in _RATE_MARKERS):
+                await self.reset()                  # fatal 후 클라이언트 상태 불명 — 스트림 잔여물 제거
                 raise RateLimited(str(e)[:200]) from e
             raise BrainError(str(e)[:200]) from e
 
