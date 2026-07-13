@@ -1,9 +1,10 @@
 """MemoStore/MuseStore — MockTransport로 PostgREST 요청 검증."""
 import asyncio
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 
 import httpx
+import pytest
 
 from bot.store import KST, MemoStore, MuseStore
 
@@ -52,6 +53,22 @@ def test_memo_delete_returns_true_when_deleted():
     assert run(store.delete(3)) is True
     assert reqs[0].method == "DELETE"
     assert reqs[0].url.params["id"] == "eq.3"
+
+
+def test_memo_add_raises_on_http_error():
+    store = MemoStore("https://d.supabase.co", "k",
+                      transport=make_transport([], {"message": "boom"}, status=500))
+    with pytest.raises(httpx.HTTPStatusError):
+        run(store.add("우유"))
+
+
+def test_sends_service_key_headers():
+    reqs = []
+    store = MemoStore("https://d.supabase.co", "service-key",
+                      transport=make_transport(reqs, []))
+    run(store.list())
+    assert reqs[0].headers["apikey"] == "service-key"
+    assert reqs[0].headers["Authorization"] == "Bearer service-key"
 
 
 def test_muse_count_today_uses_kst_midnight():
