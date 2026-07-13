@@ -2,9 +2,9 @@
 import asyncio
 
 from bot.gcal import AmbiguousMatch, NoMatch
-from bot.tools import (MUSE_DAILY_LIMIT, handle_gcal_delete, handle_gcal_update,
-                       handle_memo_add, handle_memo_delete, handle_memo_list,
-                       handle_memo_update, handle_muse_post)
+from bot.tools import (MUSE_DAILY_LIMIT, handle_gcal_add, handle_gcal_delete,
+                       handle_gcal_update, handle_memo_add, handle_memo_delete,
+                       handle_memo_list, handle_memo_update, handle_muse_post)
 
 
 def run(coro):
@@ -56,18 +56,27 @@ class FakeMuse:
 
 
 class FakeGcal:
-    """update/delete가 예외를 던지는 경우를 흉내."""
+    """호출 인자를 기록하고, exc가 있으면 대신 던진다."""
     def __init__(self, exc=None):
         self._exc = exc
+        self.calls = []
+
+    def add(self, *a, **kw):
+        if self._exc:
+            raise self._exc
+        self.calls.append((a, kw))
+        return "등록됨: X"
 
     def update(self, *a, **kw):
         if self._exc:
             raise self._exc
+        self.calls.append((a, kw))
         return "변경됨: X"
 
     def delete(self, *a, **kw):
         if self._exc:
             raise self._exc
+        self.calls.append((a, kw))
         return "삭제됨: X"
 
 
@@ -118,3 +127,22 @@ def test_gcal_update_ambiguous_returns_candidates():
 def test_gcal_delete_no_match():
     gcal = FakeGcal(exc=NoMatch("'치과' 없음"))
     assert "못 찾" in text_of(run(handle_gcal_delete(gcal, {"title": "치과"})))
+
+
+def test_gcal_add_empty_end_becomes_none():
+    """SDK required 스키마 탓에 모델이 보내는 빈 문자열은 None으로 정규화돼야 한다."""
+    gcal = FakeGcal()
+    run(handle_gcal_add(gcal, {"title": "치과", "start": "2026-07-14T15:00",
+                               "end": "", "description": ""}))
+    (a, kw), = gcal.calls
+    assert a == ("치과", "2026-07-14T15:00", None, None)
+    assert kw == {}
+
+
+def test_gcal_update_empty_optionals_become_none():
+    gcal = FakeGcal()
+    run(handle_gcal_update(gcal, {"title": "치과", "start": "", "new_title": "",
+                                  "new_start": "2026-07-15T16:00", "new_end": ""}))
+    (a, kw), = gcal.calls
+    assert a == ("치과", None)
+    assert kw == {"new_title": None, "new_start": "2026-07-15T16:00", "new_end": None}

@@ -26,10 +26,11 @@ async def handle_gcal_agenda(gcal, args: dict) -> dict:
 
 
 async def handle_gcal_add(gcal, args: dict) -> dict:
+    # SDK가 dict 스키마를 전부 required로 선언 → 모델이 선택 인자를 ""로 보냄 → None 정규화
     try:
         out = await asyncio.to_thread(
             gcal.add, args["title"], args["start"],
-            args.get("end"), args.get("description"))
+            args.get("end") or None, args.get("description") or None)
         return _text(out)
     except GcalError as e:
         return _text(f"등록 실패: {e}")
@@ -50,16 +51,16 @@ def _mutate_result(fn) -> dict:
 
 async def handle_gcal_update(gcal, args: dict) -> dict:
     def call():
-        return gcal.update(args["title"], args.get("start"),
-                           new_title=args.get("new_title"),
-                           new_start=args.get("new_start"),
-                           new_end=args.get("new_end"))
+        return gcal.update(args["title"], args.get("start") or None,
+                           new_title=args.get("new_title") or None,
+                           new_start=args.get("new_start") or None,
+                           new_end=args.get("new_end") or None)
     return await asyncio.to_thread(_mutate_result, call)
 
 
 async def handle_gcal_delete(gcal, args: dict) -> dict:
     def call():
-        return gcal.delete(args["title"], args.get("start"))
+        return gcal.delete(args["title"], args.get("start") or None)
     return await asyncio.to_thread(_mutate_result, call)
 
 
