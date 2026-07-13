@@ -81,7 +81,7 @@ bot/
 `.env` 항목: `DISCORD_TOKEN`(새 봇), `ASSIST_CHANNEL_ID`(새), `DIARY_CHANNEL_ID`(새),
 `ALLOWED_USER_IDS`, `BLOG_SUPABASE_URL`, `BLOG_SUPABASE_SERVICE_KEY`,
 `SUPABASE_URL`·`SUPABASE_SERVICE_KEY`(desk — memos용, v3 값 재사용), `GCAL_IDS`,
-`GCAL_SA_PATH`(서비스 계정 키, 기본 `.gcal-sa.json`), `CLAUDE_MODEL`(기본 sonnet),
+`GCAL_SA_KEY`(서비스 계정 키, 기본 `.gcal-sa.json`), `CLAUDE_MODEL`(기본 sonnet),
 `CLAUDE_FALLBACK_MODEL`(기본 haiku), `CLAUDE_CODE_OAUTH_TOKEN`(환경 상속).
 
 **fail-closed 변경**: v3는 `ALLOWED_USER_IDS`가 비면 전원 허용이었다. v4는 비어 있으면 **기동 거부**.

@@ -1,33 +1,23 @@
-# assist v2 — 24시간 개인 비서
+# assist v4 — 경량 개인 비서 "삐삐"
 
-Discord로 소통하는 개인 비서. 정기 작업(아침 브리핑·채용공고 스캔·저녁 체크인)은
-Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하고, 자유 대화는
-무료 서버(GCP e2-micro → Oracle A1)의 얇은 discord.py 봇이 `claude -p` 헤드리스
-호출로 처리한다. 기억은 Supabase 무료 Postgres 한 곳에 모은다.
+Discord로 부리는 개인 비서. 단일 Python 프로세스(GCP e2-micro)가
+Claude Agent SDK 상주 세션으로 대화·아침브리핑·캘린더·메모·아무말 게시판을 처리한다.
+설계: `docs/superpowers/specs/2026-07-13-assist-v4-design.md`
 
-```
-[Anthropic 클라우드 — 서버 0대]            [GCP e2-micro (무료) → Oracle A1 (잡히면 이전)]
- 스케줄 에이전트 (routines)                  Discord 대화 봇 (Python, 얇은 릴레이)
-  ├─ 아침 브리핑 (메일+일정)   07:30          ├─ 메시지 수신 → claude -p 헤드리스 호출
-  ├─ 채용공고 스캔 (언리얼)    09:00          ├─ 직렬 큐 + 429 백오프 + 모델 다운시프트
-  └─ 저녁 체크인 (내일일정+뉴스)  21:00        └─ systemd 상시 구동, Max 구독 토큰 인증
-       │                                          │
-       └──── Discord Webhook ───→ [Discord 채널] ←─ Gateway ─┘
+## 기능
 
-              [Supabase 무료 Postgres] ← 양쪽이 같은 DB를 공유 = "하나의 기억"
-```
+1. 자유 대화 + 웹검색 레퍼런스
+2. 아침 브리핑(뉴스·날씨·오늘 일정) 07:30 KST
+3. 캘린더 조회·등록·수정·삭제 (자연어)
+4. 메모 CRUD
+5. #코멘트 → 블로그 일기
+6. 삐삐의 아무말 게시판 (블로그 bot_muse, 1~2회/일 — 랜덤 기회 2번 + 23시 마감 체크)
 
-## 구성 요소
+## 구조
 
-| 위치 | 역할 |
-|---|---|
-| `routines/` | 클라우드 루틴 프롬프트 원본. morning/evening은 런타임에 이 .md를 직접 Read하므로 **내용 수정은 재등록 없이 다음 실행에 자동 반영**(job-scan은 아직 자체완결형) |
-| `bot/` | Discord 대화 봇 (엔트리: `python -m bot.main`) |
-| `agent/CLAUDE.md` | 비서 페르소나 — `claude -p` 가 이 디렉토리에서 실행됨 |
-| `scripts/db.py` | 비서(Claude)가 Bash로 호출하는 Supabase CLI |
-| `db/schema.sql` | 테이블: memories, job_seen, schedule_notes, heartbeat, projects, project_tasks, shared_list, expenses (대부분 `owner` minsu/haneul/shared 컬럼 보유) |
-| `deploy/` | systemd 유닛 + GCP/Oracle 셋업 절차 |
-| `oci-retry/` | Oracle A1 capacity 재시도 스크립트 (v1에서 유지) |
+`bot/main.py`(조립) · `config`(fail-closed) · `discord_bot`(게이트웨이) · `brain`(Agent SDK 상주 세션,
+백오프·다운시프트·세션 로테이션) · `tools`(in-process MCP 도구 11종) · `gcal` · `store`(memos·bot_muse) ·
+`weather` · `scheduler` · `prompts`(삐삐 페르소나) · `diary`(v3 이식)
 
 ## 로컬 실행
 
@@ -35,65 +25,42 @@ Claude Code **클라우드 스케줄 에이전트**가 서버 없이 수행하�
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env   # 값 채우기
-.venv/Scripts/python -m pytest        # 37개 테스트
-.venv/Scripts/python -m bot.main      # 봇 기동
+.venv/Scripts/python -m pytest        # 70개 테스트
+.venv/Scripts/python -m bot.main
 ```
+
+## 새 Discord 서버/봇 셋업 (1회)
+
+1. Discord 서버 새로 만들기 → #비서, #코멘트 채널 생성
+2. discord.com/developers → New Application "삐삐" → Bot 탭:
+   프사 업로드, MESSAGE CONTENT INTENT ON, 토큰 복사(`DISCORD_TOKEN`)
+3. OAuth2 → URL Generator: scope=bot, 권한 View Channels/Send Messages/Add Reactions
+   → 생성된 URL로 서버에 초대
+4. Discord 설정 → 고급 → 개발자 모드 ON → 채널 우클릭 → ID 복사 → `.env`에
+5. 본인 유저 ID 복사 → `ALLOWED_USER_IDS`
 
 ## 운영 런북
 
-- **봇 재시작**: `sudo systemctl restart assist-bot`
-- **로그**: `journalctl -u assist-bot -f`
-- **루틴 수정**: `routines/morning-briefing.md`·`evening-checkin.md`는 등록된 프롬프트가 "리포의 이 .md를 Read해서 따르라 + 비밀값 치환" 형태(repo-read)라, **.md 내용만 고치고 main에 push하면 다음 실행에 자동 반영**(재등록 불필요). 비밀값·스케줄·환경·래퍼 프롬프트 자체를 바꿀 때만 `/schedule`(RemoteTrigger update)로 재등록. job-scan은 아직 자체완결형이라 수정 시 재등록 필요
-- **봇 생존 확인**: Supabase `heartbeat` 테이블 — 30분 무신호면 저녁 체크인이 Discord로 알림
-- **새 테이블 추가**: `db/schema.sql`에 추가 → Supabase MCP `apply_migration`으로 적용
-- **429 빈발 시**: `.env`의 `CLAUDE_MODEL`을 `haiku`로 낮추거나 루틴 빈도 축소
+- 서버: `gcloud compute ssh assist-bot --zone=us-west1-b`
+- 배포: `cd /opt/assist && sudo -u assist git pull && sudo systemctl restart assist-bot`
+- 로그: `journalctl -u assist-bot -f`
+- Max 토큰 만료 시: `claude setup-token` 재발급 → `/opt/assist/.env`
+- 브리핑이 안 오면 봇이 죽은 것 → systemd `Restart=always`가 재기동, 로그 확인
+- GCP 무료체험 2026-09-11 만료 — 이전에 유료 계정 업그레이드(e2-micro는 Always Free라 $0)
 
-### 클라우드 루틴 인프라 (등록 완료, 관리: https://claude.ai/code/routines)
+## v3 정리 체크리스트 (전환 시 1회)
 
-| 루틴 | trigger_id | 스케줄 (KST/UTC) | 내용 |
-|---|---|---|---|
-| morning-briefing | `trig_01JWDRtXgMXptKPd5BJ2fCtP` | 07:30 / 22:30 전날 | 날씨·오늘일정·새벽메일·리마인더(owner별 D-N·기념일축하)·새벽뉴스(날짜앵커) |
-| evening-checkin | `trig_016UduhHxdsGu2awFjQCrzjF` | 21:00 / 12:00 | 내일날씨·내일일정·오늘메일·리마인더(owner별)·뉴스(날짜앵커)·청년정책/분양·장보기·이번달지출 |
-| job-scan (아침) | `trig_015kcr2dP6UxQ99mKfqdjyR9` | 09:00 / 00:00 | 언리얼 채용 6사이트, 48h 롤링 신규만 |
-| job-scan-evening | `trig_01UHBnqRTauyaYeF7CVFraEq` | 20:00 / 11:00 | 동일 (저녁분) |
+- [ ] desk Supabase에 `db/v4-memos-desk.sql` 적용 (Supabase MCP `apply_migration`)
+- [ ] blog Supabase에 `db/v4-bot-muse-blog.sql` 적용
+- [ ] 클라우드 루틴 4개 삭제: `trig_01JWDRtXgMXptKPd5BJ2fCtP`(morning) ·
+      `trig_016UduhHxdsGu2awFjQCrzjF`(evening) · `trig_015kcr2dP6UxQ99mKfqdjyR9`(job) ·
+      `trig_01UHBnqRTauyaYeF7CVFraEq`(job-evening) — https://claude.ai/code/routines
+- [ ] 서버 `/opt/assist/.env` 를 새 `.env.example` 기준으로 교체 (v3 잔여 키 제거)
+- [ ] 서버에서 `pip install -r requirements.txt` (claude-agent-sdk 설치)
+- [ ] 스모크 테스트: 인사 → 날씨 → "내일 3시 치과" 등록 → "치과 4시로" 수정 → 메모 등록/삭제 → #코멘트 기록
+- [ ] 구 채널·구 봇 은퇴
 
-- **DB 모델**: 리마인더는 `schedule_notes`(category=deadline/birthday/anniversary/campaign, recurring, owner),
-  장보기·집안일은 `shared_list`(kind=grocery/chore), 가계부는 `expenses`(amount/category/owner),
-  채용 중복제거는 `job_seen` 48시간 롤링(무한 누적 안 함, 매 실행 시 48h 지난 row 삭제).
-  부부 공유: 대부분 테이블에 `owner`(minsu/haneul/shared) — 브리핑이 owner별로 묶어 표시
-- **뉴스/청년정책/분양**은 WebSearch로 수집(소스 링크 없이 요약). 채용 6사이트:
-  원티드(API)·잡코리아·사람인·게임잡 + remotegamejobs.com·hitmarker.net (gamejobs.co/indiegamejobs.com은 403 차단으로 제외)
-- **전용 클라우드 환경**: `assist` (`env_014a4KJoj4zmVsH3xAS5gwqS`) — 네트워크 "사용자 정의" 23개 도메인
-  (discord(app)·wanted·jobkorea·gamejob·saramin·supabase·open-meteo·wttr.in·remotegamejobs·hitmarker + 와일드카드)
-- **루틴 DB 접근**: Supabase MCP 커넥터(OAuth 만료) 대신 **service role 키 REST 직접 호출**
-  (루틴 prompt에 키 박힘, 2094년까지 유효). Gmail/Calendar만 MCP 커넥터 사용.
-- **교훈 두 가지** (둘 다 침묵 실패의 원인이었음):
-  1. 기본(Default) 환경은 "신뢰됨" 네트워크라 discordapp.com 아웃바운드 차단 → 루틴은 반드시 assist 환경에서
-  2. Discord webhook은 기본 curl User-Agent를 403으로 차단 → `-H "User-Agent: assist-routine/1.0"` 필수
-- **Supabase 프로젝트**: `tuqwhjldzghnsenyhyom` (이름 desk, ap-southeast-2)
+## 리스크 메모
 
-### 봇 서버 (GCP, 2026-06-12 배포)
-
-- 인스턴스: `assist-bot` / 프로젝트 `assist-bot-2606` / `us-west1-b` / e2-micro + 30GB pd-standard (Always Free)
-- 접속: `gcloud compute ssh assist-bot --zone=us-west1-b`
-- 인증: Max 구독 setup-token (1년 유효, `/opt/assist/.env`의 `CLAUDE_CODE_OAUTH_TOKEN`) — 만료 시 `claude setup-token` 재발급
-- 배포 갱신: ssh 후 `cd /opt/assist && sudo -u assist git pull && sudo systemctl restart assist-bot`
-- 캘린더 읽기/쓰기: 서비스 계정 `assist-calendar@assist-bot-2606.iam.gserviceaccount.com`
-  (키: `/opt/assist/.gcal-sa.json`, 대상 캘린더: `.env`의 `GCAL_IDS`(민수). 캘린더 추가 = 그 캘린더를
-  서비스 계정에 "일정 변경" 공유 후 GCAL_IDS에 ID 추가)
-- **부부 멀티유저(민수+하늘)**: `#비서` 채널은 두 사람 공용. 봇이 발신자를 구분하도록 `.env`에:
-  - `ALLOWED_USER_IDS=<민수id>,<하늘id>` — 응답 허용 목록에 하늘 디스코드 id 추가
-    (⚠️ 이 목록에 없는 사용자의 `#비서` 메시지는 **응답 없이 조용히 무시**됨(서버 로그에 warning만). 하늘 id를 빠뜨리면 하늘 메시지에 봇이 답하지 않으니 주의. 목록 자체가 비면 전원 허용.)
-  - `USER_LABELS=<민수id>:민수,<하늘id>:하늘` — 봇이 매 메시지 첫 줄에 `[발신자: 이름]`을 붙여 에이전트가 화자를 안다
-  - (디스코드 user id 얻기: 설정 → 고급 → 개발자 모드 ON → 유저 우클릭 → "사용자 ID 복사")
-- **하늘 캘린더(미리 세팅, 권한은 나중에)**: `gcal.py`가 `--who minsu|wife|all` 지원. 하늘 캘린더 ID는
-  `.env`의 `GCAL_IDS_WIFE`(지금은 빈 값). 하늘이 본인 구글 캘린더를 위 서비스 계정에 "일정 변경"으로 공유하고
-  ID를 `GCAL_IDS_WIFE`에 넣으면 즉시 활성화(재배포 불필요). 빈 값이면 `--who wife`는 안내만 하고 안전 종료.
-- ⚠️ GCP 무료체험 2026-09-11 만료 — 만료 전 유료 계정 업그레이드 필요 (캘린더 9/7 리마인더 등록됨.
-  업그레이드해도 e2-micro는 Always Free라 $0, 자동 과금 없음)
-
-## 문서
-
-- 설계: `docs/superpowers/specs/2026-06-11-assist-v2-design.md`
-- 구현 계획: `docs/superpowers/plans/2026-06-11-assist-v2.md`
-- 채용 사이트 수집 전략: `docs/superpowers/research/2026-06-11-job-sites.md`
+- Agent SDK 인증은 현행 Max setup-token(개인 사용). 문제 발생 시 폴백:
+  ① `claude` CLI `--input-format stream-json` 상시 프로세스 ② API 키
