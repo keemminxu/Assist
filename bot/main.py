@@ -54,8 +54,11 @@ async def amain() -> None:
     async def send_assist(text: str) -> None:
         channel = client.get_channel(s.assist_channel_id)
         if channel is None:
-            log.error("assist 채널을 못 찾음: %s", s.assist_channel_id)
-            return
+            try:
+                channel = await client.fetch_channel(s.assist_channel_id)
+            except Exception:                         # noqa: BLE001
+                log.exception("assist 채널 조회 실패: %s", s.assist_channel_id)
+                return
         for chunk in chunk_message(text):
             await channel.send(chunk)
 
@@ -79,9 +82,16 @@ async def amain() -> None:
 
     async def start_scheduler() -> None:
         await client.wait_until_ready()
-        await run_loop({"briefing": do_briefing,
-                        "muse_chance": do_muse_chance,
-                        "muse_deadline": do_muse_deadline})
+        while True:
+            try:
+                await run_loop({"briefing": do_briefing,
+                                "muse_chance": do_muse_chance,
+                                "muse_deadline": do_muse_deadline})
+            except asyncio.CancelledError:
+                raise
+            except Exception:                         # noqa: BLE001 — 침묵 실패 금지
+                log.exception("스케줄러 루프 사망 — 60초 후 재시작")
+                await asyncio.sleep(60)
 
     asyncio.ensure_future(start_scheduler())
     await client.start(s.discord_token)
