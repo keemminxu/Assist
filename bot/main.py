@@ -30,7 +30,7 @@ def make_options_factory(server, persona: str):
             mcp_servers={"assist": server},
             allowed_tools=["mcp__assist__*", "WebSearch"],
             permission_mode="dontAsk",
-            max_turns=15,
+            max_turns=20,
         )
     return factory
 
@@ -93,7 +93,7 @@ async def amain() -> None:
                 log.exception("스케줄러 루프 사망 — 60초 후 재시작")
                 await asyncio.sleep(60)
 
-    asyncio.ensure_future(start_scheduler())
+    scheduler_task = asyncio.ensure_future(start_scheduler())  # noqa: F841 — GC 방지용 참조 보관
     await client.start(s.discord_token)
 
 

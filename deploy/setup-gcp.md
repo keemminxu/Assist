@@ -54,10 +54,9 @@ journalctl -u assist-bot -f     # "비서 봇 가동" 로그 확인
 ## Oracle A1 이전 (capacity 확보 시)
 
 1. PAYG 전환(무료 한도 유지, capacity 거절 해소) 후 OCI 콘솔 → Billing → **Budgets에서 월 $1 알림** 설정
-2. Oracle CloudShell에서 `oci-retry/retry-launch.sh` 실행해 A1 확보
-3. A1 인스턴스에 위 2~5단계 동일 적용 (ARM이지만 절차 동일)
-4. GCP의 `/opt/assist/.env` 를 그대로 복사
-5. A1에서 `systemctl enable --now assist-bot` → Discord 대화 검증
-6. GCP 쪽 `sudo systemctl disable --now assist-bot`
-7. 24시간 병행 관찰 후 GCP 인스턴스 삭제:
+2. A1 인스턴스에 위 2~5단계 동일 적용 (ARM이지만 절차 동일)
+3. GCP의 `/opt/assist/.env` 를 그대로 복사
+4. A1에서 `systemctl enable --now assist-bot` → Discord 대화 검증
+5. GCP 쪽 `sudo systemctl disable --now assist-bot`
+6. 24시간 병행 관찰 후 GCP 인스턴스 삭제:
    `gcloud compute instances delete assist-bot --zone=us-west1-b`

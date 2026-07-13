@@ -6,7 +6,4 @@ __pycache__/
 *.log
 *.err.log
 .pytest_cache/
-oci-retry/*.pid
-oci-retry/*.json
-launch-success.json
 .gcal-sa.json

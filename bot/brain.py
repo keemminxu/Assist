@@ -83,8 +83,8 @@ class SDKRunner:
 
     async def ask(self, prompt: str, model: str) -> str:
         from claude_agent_sdk import AssistantMessage, ResultMessage, TextBlock
-        await self._ensure(model)
         try:
+            await self._ensure(model)
             await self._client.query(prompt)
             parts: list[str] = []
             async for msg in self._client.receive_response():

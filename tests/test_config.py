@@ -44,3 +44,9 @@ def test_missing_required_var_raises_keyerror():
     env = {k: v for k, v in BASE_ENV.items() if k != "DISCORD_TOKEN"}
     with pytest.raises(KeyError):
         Settings.from_env(env)
+
+
+def test_empty_gcal_ids_refuses_to_boot():
+    env = {**BASE_ENV, "GCAL_IDS": " , "}
+    with pytest.raises(ConfigError):
+        Settings.from_env(env)

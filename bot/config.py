@@ -39,6 +39,9 @@ class Settings:
         if not allowed:
             raise ConfigError(
                 "ALLOWED_USER_IDS가 비어 있음 — 허용 사용자 없이는 기동하지 않는다 (fail-closed)")
+        gcal_ids = tuple(c.strip() for c in env["GCAL_IDS"].split(",") if c.strip())
+        if not gcal_ids:
+            raise ConfigError("GCAL_IDS가 비어 있음 — 캘린더 없이는 기동하지 않는다 (fail-closed)")
         return cls(
             discord_token=env["DISCORD_TOKEN"],
             assist_channel_id=int(env["ASSIST_CHANNEL_ID"]),
@@ -48,7 +51,7 @@ class Settings:
             supabase_service_key=env["SUPABASE_SERVICE_KEY"],
             blog_supabase_url=env["BLOG_SUPABASE_URL"],
             blog_supabase_service_key=env["BLOG_SUPABASE_SERVICE_KEY"],
-            gcal_ids=tuple(c.strip() for c in env["GCAL_IDS"].split(",") if c.strip()),
+            gcal_ids=gcal_ids,
             gcal_sa_key=env.get("GCAL_SA_KEY", ".gcal-sa.json"),
             claude_model=env.get("CLAUDE_MODEL", "sonnet"),
             claude_fallback_model=env.get("CLAUDE_FALLBACK_MODEL", "haiku"),

@@ -28,6 +28,8 @@ async def one_liner(lat: float, lon: float, transport=None) -> str:
         d = resp.json()
     cur, day = d["current"], d["daily"]
     desc = _WMO.get(cur["weather_code"], "날씨")
+    prob = day["precipitation_probability_max"][0]
+    prob_txt = "?" if prob is None else f"{prob}"
     return (f"{desc}, 지금 {cur['temperature_2m']:.0f}°C "
             f"(최저 {day['temperature_2m_min'][0]:.0f}° / 최고 {day['temperature_2m_max'][0]:.0f}°, "
-            f"강수확률 {day['precipitation_probability_max'][0]}%)")
+            f"강수확률 {prob_txt}%)")

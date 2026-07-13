@@ -26,3 +26,11 @@ def test_unknown_code_falls_back():
         return httpx.Response(200, json=data)
     out = asyncio.run(one_liner(37.57, 126.98, transport=httpx.MockTransport(handler)))
     assert out.startswith("날씨, 지금 10°C")
+
+
+def test_null_precipitation_probability():
+    def handler(request):
+        data = {**SAMPLE, "daily": {**SAMPLE["daily"], "precipitation_probability_max": [None]}}
+        return httpx.Response(200, json=data)
+    out = asyncio.run(one_liner(37.57, 126.98, transport=httpx.MockTransport(handler)))
+    assert "?%" in out and "None" not in out
