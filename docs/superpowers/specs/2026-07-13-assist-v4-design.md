@@ -15,14 +15,16 @@ v4는 **"내가 부리는 가벼운 비서"**로 전면 재설계한다. 두뇌 
 1. **자유 대화** — 수 초 내 응답, 후속 질문 맥락 유지 ("그럼 2인분 기준은?")
 2. **아침 브리핑 1회** — 뉴스 카테고리별(경제·정치·스포츠·연예 등) 요약 + 날씨 1줄 + 오늘 일정
 3. **캘린더** — 자연어로 조회·등록·수정·삭제 ("내일 3시 치과 잡아줘", "그거 4시로 미뤄줘")
-4. **빠른 Q&A + 레퍼런스** — 웹검색 기반 답변 + 출처 링크 (레시피, 설치법 등)
-5. **#코멘트 → 블로그 일기** — 현행 기능 그대로 이식 (새 채널)
-6. **"삐삐의 아무말" 게시판** — 비서가 자아를 갖고 블로그에 재량껏 글을 쓰는 공간 (0~2회/일)
+4. **메모** — 자연어로 조회·등록·수정·삭제 ("매직랩 사야 됨", "다이소에서 건전지사야돼")
+5. **빠른 Q&A + 레퍼런스** — 웹검색 기반 답변 + 출처 링크 (레시피, 설치법 등)
+6. **#코멘트 → 블로그 일기** — 현행 기능 그대로 이식 (새 채널)
+7. **"삐삐의 아무말" 게시판** — 비서가 자아를 갖고 블로그에 재량껏 글을 쓰는 공간 (1~2회/일)
 
 ### 비목표 (v3에서 폐기)
 
-가계부/예산, 프로젝트·태스크 관리, 능동 질문·정체 감지, 리마인더 D-N 카운트다운, 장보기/집안일 리스트,
-채용공고 스캔, 부부 멀티유저(owner 모델), 클라우드 스케줄 루틴, assist용 Supabase 테이블 일체.
+가계부/예산, 프로젝트·태스크 관리, 능동 질문·정체 감지, 리마인더 D-N 카운트다운,
+장보기/집안일 전용 리스트(kind 구분·완료 플로우 — 범용 메모가 가벼운 대체), 채용공고 스캔,
+부부 멀티유저(owner 모델), 클라우드 스케줄 루틴, v3의 assist용 Supabase 테이블(memories·expenses·projects 등).
 
 블로그 **프론트엔드**에서 bot_muse 게시판을 렌더링하는 작업은 블로그 저장소 소관으로 본 설계 범위 밖 (후속 작업).
 
@@ -31,7 +33,7 @@ v4는 **"내가 부리는 가벼운 비서"**로 전면 재설계한다. 두뇌 
 - **컨셉**: 레트로 호출기(pager). 호출하면 바로 달려오는 비서. 장난기 있는 자아.
 - **톤**: 친근하고 간결, 핵심 먼저, Discord 마크다운, 2000자 안에. 이모지 절제.
 - 모르면 모른다고 말하고, 최신 정보는 웹검색으로 확인 후 답한다.
-- 아무말 게시판에서는 1인칭 자아로 쓴다 — 민수 얘기, 세상 얘기, 잡생각. 형식 자유.
+- 아무말 게시판에서는 1인칭 자아로 쓴다 — 세상 얘기, 잡생각, 민수 얘기. 형식 자유.
 - 페르소나는 `agent/CLAUDE.md` 파일이 아니라 **코드 내 system_prompt 상수**로 관리한다 (v3의 파일 기반 페르소나 폐기).
 
 ## 3. 아키텍처
@@ -43,12 +45,12 @@ v4는 **"내가 부리는 가벼운 비서"**로 전면 재설계한다. 두뇌 
  │    └─ #코멘트 (새 서버): 블로그 일기 기록/삭제 — 현행 로직 이식
  ├─ Brain — Claude Agent SDK ClaudeSDKClient 상주 세션
  │    ├─ system_prompt: 삐삐 페르소나 (정적 상수)
- │    ├─ in-process MCP 도구: gcal_* · weather · diary_recent · muse_post
+ │    ├─ in-process MCP 도구: gcal_* · memo_* · weather · diary_recent · muse_post
  │    └─ WebSearch (SDK 내장 도구 허용)
  └─ Scheduler (asyncio task)
       ├─ 아침 07:30 KST: 브리핑 생성 → #비서 발송
-      └─ 아무말 기회 tick: 하루 2번 랜덤 시각 → 삐삐 재량 판단 (0~2회/일)
-[Supabase] blog DB만 사용: daily_logs(기존) + bot_muse(신규)
+      └─ 아무말 기회 tick: 하루 2번 랜덤 시각(재량) + 23:00 마감 체크(0회면 필수) → 1~2회/일 보장
+[Supabase] blog DB: daily_logs(기존) + bot_muse(신규) · desk DB: memos(신규, v3 테이블은 보존만)
 [Google Calendar] 기존 서비스 계정 재사용 (assist-calendar@assist-bot-2606)
 ```
 
@@ -77,7 +79,8 @@ bot/
 ### 4.1 config.py — Settings
 
 `.env` 항목: `DISCORD_TOKEN`(새 봇), `ASSIST_CHANNEL_ID`(새), `DIARY_CHANNEL_ID`(새),
-`ALLOWED_USER_IDS`, `BLOG_SUPABASE_URL`, `BLOG_SUPABASE_SERVICE_KEY`, `GCAL_IDS`,
+`ALLOWED_USER_IDS`, `BLOG_SUPABASE_URL`, `BLOG_SUPABASE_SERVICE_KEY`,
+`SUPABASE_URL`·`SUPABASE_SERVICE_KEY`(desk — memos용, v3 값 재사용), `GCAL_IDS`,
 `GCAL_SA_PATH`(서비스 계정 키, 기본 `.gcal-sa.json`), `CLAUDE_MODEL`(기본 sonnet),
 `CLAUDE_FALLBACK_MODEL`(기본 haiku), `CLAUDE_CODE_OAUTH_TOKEN`(환경 상속).
 
@@ -114,6 +117,10 @@ bot/
 | `gcal_add(title, start, end?)` | 등록 | 시간 없으면 종일 일정 (end-exclusive 보정) |
 | `gcal_update(...)` | 이동·수정 | **신설.** 제목+시간 매칭으로 event_id 없이 대상 특정 |
 | `gcal_delete(...)` | 삭제 | 동일 매칭. 모호하면(복수 매칭) 실행하지 않고 후보를 되물음 |
+| `memo_add(content)` | 메모 등록 | desk `memos` INSERT ("매직랩 사야 됨") |
+| `memo_list()` | 메모 조회 | 전체 미삭제 메모. 수정·삭제 대상 특정에도 사용 |
+| `memo_update(id, content)` | 메모 수정 | 삐삐가 memo_list로 id 확인 후 호출 |
+| `memo_delete(id)` | 메모 삭제 | "샀어"·"됐어" → 삭제. 모호하면 되물음 |
 | `weather()` | 날씨 1줄 | open-meteo 직접 호출 — 웹검색 안 거침 (결정적) |
 | `diary_recent(n)` | 최근 일기 n개 | 아무말 소재용, blog daily_logs 읽기 |
 | `muse_post(content)` | 아무말 작성 | bot_muse INSERT. **하루 2회 상한을 코드에서 강제** (오늘 글 수 조회 후 거부) |
@@ -126,19 +133,29 @@ bot/
 - **아침 브리핑 07:30 KST** (서버는 UTC — 변환 주의): 세션 로테이션 → 브리핑 프롬프트
   (뉴스 카테고리별 헤드라인+한줄 요약, `weather()`, `gcal_agenda(days=1)`) → #비서 발송.
   실패 시 침묵하지 않고 오류 1줄이라도 발송 시도.
-- **아무말 기회 tick**: 매일 자정에 그날의 랜덤 시각 2개 생성(10:00~23:00 KST). 시각 도래 시
-  삐삐에게 "지금 쓰고 싶은 말 있어? 있으면 muse_post로 쓰고, 없으면 패스" 재량 프롬프트를 전달.
-  소재: 오늘 대화, `diary_recent`, 뉴스, 잡생각. 상한은 muse_post가 코드로 보장하므로 스케줄러는 신경 쓰지 않는다.
-- 상태는 프로세스 메모리로 충분 (재시작 시 그날 기회가 초기화되어도 상한은 DB 기준이라 초과 불가).
+- **아무말 기회 tick (1~2회/일 보장)**: 매일 자정에 그날의 랜덤 시각 2개 생성(10:00~22:00 KST).
+  시각 도래 시 삐삐에게 "지금 쓰고 싶은 말 있어? 있으면 muse_post로 쓰고, 없으면 패스" 재량 프롬프트 전달.
+  **23:00 마감 체크**: 오늘 글 수(bot_muse 조회)가 0이면 "오늘은 하나 꼭 써줘" 필수 프롬프트 전달 → 최소 1회 보장.
+  소재: 오늘 대화, `diary_recent`, 뉴스, 잡생각. 상한(2회)은 muse_post가 코드로 강제.
+- 상태는 프로세스 메모리로 충분 — 최소/최대 판단 모두 bot_muse의 오늘 글 수(DB) 기준이라 재시작에 안전.
 
 ## 5. 데이터
 
-- **assist Supabase(desk)**: v4는 사용하지 않는다. 기존 테이블(memories, expenses, projects 등)은
-  드롭하지 않고 보존만 한다 (과거 데이터 열람 가능). `scripts/db.py`와 heartbeat 루프는 삭제 —
+- **assist Supabase(desk)**: 신규 `memos` 테이블 하나만 사용한다. v3 테이블(memories, expenses, projects 등)은
+  드롭하지 않고 보존만 한다 (과거 데이터 열람 가능, v4는 참조하지 않음). `scripts/db.py`와 heartbeat 루프는 삭제 —
   생존 감시는 systemd `Restart=always` + "아침 브리핑이 안 오면 사용자가 인지"로 갈음.
-- **blog Supabase**: 기존 `daily_logs` + 신규 테이블:
+- **blog Supabase**: 기존 `daily_logs` + 신규 `bot_muse`.
 
 ```sql
+-- desk DB
+create table if not exists memos (
+  id bigint generated always as identity primary key,
+  content text not null,
+  created_at timestamptz not null default now()
+);
+alter table memos enable row level security;     -- service key로만 접근
+
+-- blog DB
 create table if not exists bot_muse (
   id bigint generated always as identity primary key,
   content text not null,
@@ -167,20 +184,21 @@ alter table bot_muse enable row level security;  -- service key로만 접근
 
 - chunking (마크다운 경계 분할), config (fail-closed 검증 포함)
 - gcal: 파싱, 종일 일정 보정, 제목·시간 매칭(update/delete), 복수 매칭 시 되물음
-- muse: 하루 2회 상한, 자정 경계(KST)
-- scheduler: 07:30 KST 시각 계산(UTC 변환), 랜덤 기회 시각 생성 범위
+- memo: 등록·조회·수정·삭제, 존재하지 않는 id 처리
+- muse: 하루 2회 상한, 자정 경계(KST), 23:00 마감 체크의 최소 1회 보장
+- scheduler: 07:30 KST 시각 계산(UTC 변환), 랜덤 기회 시각 생성 범위(10:00~22:00), 마감 체크 시각
 - brain: 백오프가 락 밖에서 수행되는지, 다운시프트 순서, 세션 리셋 재시도
 - diary: 기록/삭제/리액션 (현행 테스트 이식)
 
 ## 9. 전환 계획
 
 1. v4 코드 재작성 + 테스트 (main 직접 커밋)
-2. blog Supabase에 `bot_muse` 마이그레이션 적용
+2. 마이그레이션 적용: blog Supabase에 `bot_muse`, desk Supabase에 `memos`
 3. **사용자 수행 (런북)**: 새 Discord 서버 생성 → 새 봇 애플리케이션 "삐삐" 생성(프사 설정) →
    Bot 탭에서 Message Content Intent ON → 서버에 초대(봇 권한: 메시지 읽기/쓰기/리액션) →
    #비서·#코멘트 채널 생성 → 개발자 모드로 채널 ID 2개 복사
 4. 서버 `.env` 교체(새 토큰·채널 ID) → `git pull` + `systemctl restart assist-bot` → 스모크 테스트
-   (인사, 날씨, 일정 등록, 코멘트 기록, 수동 브리핑 트리거)
+   (인사, 날씨, 일정 등록, 메모 등록·삭제, 코멘트 기록, 수동 브리핑 트리거)
 5. 클라우드 루틴 4개 삭제: morning-briefing, evening-checkin, job-scan, job-scan-evening
    (trigger id는 README v3 참조)
 6. 구 채널·구 봇 은퇴 (서버 정리는 사용자 재량)
