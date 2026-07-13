@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from bot.gcal import (KST, AmbiguousMatch, GCal, NoMatch, fmt_event,
-                      match_events, next_day)
+from bot.gcal import (KST, AmbiguousMatch, GCal, GcalError, NoMatch,
+                      fmt_event, match_events, next_day)
 
 
 def make_gcal(handler, cal_ids=("me@gmail.com",)):
@@ -113,3 +113,54 @@ def test_update_moves_event():
     out = make_gcal(handler).update("치과", new_start="2026-07-15T16:00", new_end="2026-07-15T17:00")
     assert ("PATCH", "/calendar/v3/calendars/me@gmail.com/events/a") in calls
     assert "변경됨" in out
+
+
+def test_update_move_preserves_duration():
+    captured = {}
+    def handler(request):
+        if request.method == "PATCH":
+            import json as j
+            captured.update(j.loads(request.content))
+            return httpx.Response(200, json=timed("a", "치과", "2026-07-15T16:00:00+09:00",
+                                                  "2026-07-15T18:00:00+09:00"))
+        return httpx.Response(200, json={"items": [
+            timed("a", "치과", "2026-07-14T15:00:00+09:00", "2026-07-14T17:00:00+09:00")]})
+    make_gcal(handler).update("치과", new_start="2026-07-15T16:00")
+    assert captured["end"]["dateTime"] == "2026-07-15T18:00:00"   # 원본 2시간 유지
+
+
+def test_update_allday_to_timed_clears_date():
+    captured = {}
+    def handler(request):
+        if request.method == "PATCH":
+            import json as j
+            captured.update(j.loads(request.content))
+            return httpx.Response(200, json=timed("a", "여행", "2026-07-20T10:00:00+09:00",
+                                                  "2026-07-20T11:00:00+09:00"))
+        return httpx.Response(200, json={"items": [
+            {"id": "a", "summary": "여행", "start": {"date": "2026-07-20"},
+             "end": {"date": "2026-07-21"}}]})
+    make_gcal(handler).update("여행", new_start="2026-07-20T10:00")
+    assert "date" in captured["start"] and captured["start"]["date"] is None
+    assert "date" in captured["end"] and captured["end"]["date"] is None
+
+
+def test_list_paginates():
+    def handler(request):
+        token = request.url.params.get("pageToken")
+        if token is None:
+            return httpx.Response(200, json={
+                "items": [timed("a", "치과", "2026-07-14T15:00:00+09:00",
+                                "2026-07-14T16:00:00+09:00")],
+                "nextPageToken": "p2"})
+        assert token == "p2"
+        return httpx.Response(200, json={
+            "items": [timed("b", "회식", "2026-07-14T19:00:00+09:00",
+                            "2026-07-14T20:00:00+09:00")]})
+    out = make_gcal(handler).agenda(days=1)
+    assert "치과" in out and "회식" in out
+
+
+def test_api_error_raises_gcal_error():
+    with pytest.raises(GcalError):
+        make_gcal(lambda r: httpx.Response(400, json={"error": "bad"})).agenda(days=1)

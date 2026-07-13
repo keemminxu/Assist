@@ -92,13 +92,21 @@ class GCal:
         now = self._now()
         out: list[tuple[str, dict]] = []
         for cal in self._ids:
-            resp = c.get(f"/calendars/{cal}/events", params={
-                "timeMin": now.isoformat(),
-                "timeMax": (now + timedelta(days=days)).isoformat(),
-                "singleEvents": "true", "orderBy": "startTime", "maxResults": "100",
-            })
-            self._check(resp)
-            out += [(cal, ev) for ev in resp.json().get("items", [])]
+            page_token: str | None = None
+            while True:
+                params = {"timeMin": now.isoformat(),
+                          "timeMax": (now + timedelta(days=days)).isoformat(),
+                          "singleEvents": "true", "orderBy": "startTime",
+                          "maxResults": "250"}
+                if page_token:
+                    params["pageToken"] = page_token
+                resp = c.get(f"/calendars/{cal}/events", params=params)
+                self._check(resp)
+                data = resp.json()
+                out += [(cal, ev) for ev in data.get("items", [])]
+                page_token = data.get("nextPageToken")
+                if not page_token:
+                    break
         return out
 
     def agenda(self, days: int = 7) -> str:
@@ -147,15 +155,24 @@ class GCal:
             if new_title:
                 body["summary"] = new_title
             if new_start:
+                # PATCH는 merge 의미론 — 종일↔시간형 전환 시 반대 필드를 null로 클리어해야 함
                 if "T" in new_start:
                     if new_end is None:
                         s = datetime.fromisoformat(_norm_dt(new_start))
-                        new_end = (s + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
-                    body["start"] = {"dateTime": _norm_dt(new_start), "timeZone": "Asia/Seoul"}
-                    body["end"] = {"dateTime": _norm_dt(new_end), "timeZone": "Asia/Seoul"}
+                        old_s = ev.get("start", {}).get("dateTime")
+                        old_e = ev.get("end", {}).get("dateTime")
+                        if old_s and old_e:      # 이동이면 원본 duration 보존
+                            dur = datetime.fromisoformat(old_e) - datetime.fromisoformat(old_s)
+                        else:                    # 원본이 종일 등 duration 산출 불가 시 폴백
+                            dur = timedelta(hours=1)
+                        new_end = (s + dur).strftime("%Y-%m-%dT%H:%M")
+                    body["start"] = {"dateTime": _norm_dt(new_start),
+                                     "timeZone": "Asia/Seoul", "date": None}
+                    body["end"] = {"dateTime": _norm_dt(new_end),
+                                   "timeZone": "Asia/Seoul", "date": None}
                 else:
-                    body["start"] = {"date": new_start}
-                    body["end"] = {"date": new_end or next_day(new_start)}
+                    body["start"] = {"date": new_start, "dateTime": None}
+                    body["end"] = {"date": new_end or next_day(new_start), "dateTime": None}
             if not body:
                 return "바꿀 내용이 없어요 (new_title/new_start 중 하나는 필요)"
             resp = c.patch(f"/calendars/{cal}/events/{ev['id']}", json=body)
