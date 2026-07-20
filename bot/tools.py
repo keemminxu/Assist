@@ -13,6 +13,14 @@ from bot.gcal import AmbiguousMatch, GcalError, NoMatch
 
 MUSE_DAILY_LIMIT = 2
 
+# 세션별 도구 화이트리스트 — muse(공개 블로그) 세션은 사적 데이터 도구에 접근할 수 없고,
+# 대화 세션은 muse_post가 없어 블로그에 글을 못 쓴다. 각 방향 모두 서버 등록(build_server/
+# build_muse_server)과 allowed_tools의 이중 차단이다.
+_PRIVATE_TOOLS = ("gcal_agenda", "gcal_add", "gcal_update", "gcal_delete",
+                  "memo_add", "memo_list", "memo_update", "memo_delete", "diary_recent")
+CHAT_ALLOWED_TOOLS = [f"mcp__assist__{n}" for n in (*_PRIVATE_TOOLS, "weather")] + ["WebSearch"]
+MUSE_ALLOWED_TOOLS = ["mcp__assist__muse_post", "mcp__assist__weather", "WebSearch"]
+
 
 def _text(s: str) -> dict:
     return {"content": [{"type": "text", "text": s}]}
@@ -156,16 +164,29 @@ def build_server(*, gcal, memos, muse, weather_fn):
     async def weather(args):
         return await handle_weather(weather_fn, args)
 
-    @tool("diary_recent", "민수의 최근 블로그 일기 n개 (아무말 소재용)", {"n": int})
+    @tool("diary_recent", "민수의 최근 블로그 일기 n개 조회", {"n": int})
     async def diary_recent(args):
         return await handle_diary_recent(muse, args)
 
-    @tool("muse_post", "블로그 아무말 게시판에 글 작성 (하루 2회 상한)", {"content": str})
-    async def muse_post(args):
-        return await handle_muse_post(muse, args)
-
+    # muse_post는 여기 없다 — 사적 데이터를 읽는 대화 세션은 공개 블로그에 글을 쓸 수 없다.
     return create_sdk_mcp_server(name="assist", version="1.0.0", tools=[
         gcal_agenda, gcal_add, gcal_update, gcal_delete,
         memo_add, memo_list, memo_update, memo_delete,
-        weather, diary_recent, muse_post,
+        weather, diary_recent,
     ])
+
+
+def build_muse_server(*, muse, weather_fn):
+    """muse 전용 서버 — 공개 블로그 세션에는 사적 데이터 도구(gcal·memo·diary)를
+    allowed_tools 이전에 서버 차원에서 아예 등록하지 않는다."""
+
+    @tool("weather", "현재 날씨 1줄 (서울 기준)", {})
+    async def weather(args):
+        return await handle_weather(weather_fn, args)
+
+    @tool("muse_post", "블로그 게시판에 글 작성 (하루 2회 상한)", {"content": str})
+    async def muse_post(args):
+        return await handle_muse_post(muse, args)
+
+    return create_sdk_mcp_server(name="assist", version="1.0.0",
+                                 tools=[weather, muse_post])

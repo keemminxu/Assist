@@ -2,9 +2,11 @@
 import asyncio
 
 from bot.gcal import AmbiguousMatch, NoMatch
-from bot.tools import (MUSE_DAILY_LIMIT, handle_gcal_add, handle_gcal_delete,
-                       handle_gcal_update, handle_memo_add, handle_memo_delete,
-                       handle_memo_list, handle_memo_update, handle_muse_post)
+from bot.tools import (CHAT_ALLOWED_TOOLS, MUSE_ALLOWED_TOOLS, MUSE_DAILY_LIMIT,
+                       build_muse_server, build_server, handle_gcal_add,
+                       handle_gcal_delete, handle_gcal_update, handle_memo_add,
+                       handle_memo_delete, handle_memo_list, handle_memo_update,
+                       handle_muse_post)
 
 
 def run(coro):
@@ -116,6 +118,48 @@ def test_muse_post_writes_under_limit():
     out = run(handle_muse_post(muse, {"content": "오늘의 아무말"}))
     assert muse.posted == ["오늘의 아무말"]
     assert "게시" in text_of(out)
+
+
+def test_chat_tools_cannot_post_to_blog():
+    """대화 세션은 공개 블로그에 글을 못 쓴다 — muse_post 제외가 격리의 절반."""
+    assert "mcp__assist__muse_post" not in CHAT_ALLOWED_TOOLS
+    assert "mcp__assist__gcal_agenda" in CHAT_ALLOWED_TOOLS
+    assert "mcp__assist__memo_add" in CHAT_ALLOWED_TOOLS
+    assert "mcp__assist__diary_recent" in CHAT_ALLOWED_TOOLS
+    assert "WebSearch" in CHAT_ALLOWED_TOOLS
+
+
+def test_muse_tools_cannot_reach_private_data():
+    """muse(공개 블로그) 세션은 사적 데이터 도구에 접근 불가 — 나머지 절반."""
+    assert set(MUSE_ALLOWED_TOOLS) == {
+        "mcp__assist__muse_post", "mcp__assist__weather", "WebSearch"}
+
+
+async def _fake_weather():
+    return "맑음"
+
+
+def server_tool_names(cfg):
+    """create_sdk_mcp_server 결과에서 실제 등록된 도구명을 뽑는다 — 상수가 아니라 배선 검증."""
+    import mcp.types as mt
+    handler = cfg["instance"].request_handlers[mt.ListToolsRequest]
+    res = run(handler(mt.ListToolsRequest(method="tools/list")))
+    return sorted(t.name for t in res.root.tools)
+
+
+def test_build_muse_server_registers_only_public_safe_tools():
+    """muse 서버에는 사적 데이터 도구(gcal·memo·diary)가 아예 등록되지 않는다."""
+    cfg = build_muse_server(muse=FakeMuse(), weather_fn=_fake_weather)
+    assert server_tool_names(cfg) == ["muse_post", "weather"]
+
+
+def test_build_server_does_not_register_muse_post():
+    """대화 서버에는 muse_post가 등록되지 않는다 — 사적 컨텍스트 세션은 공개 발행 불가."""
+    cfg = build_server(gcal=FakeGcal(), memos=FakeMemos(), muse=FakeMuse(),
+                       weather_fn=_fake_weather)
+    names = server_tool_names(cfg)
+    assert "muse_post" not in names
+    assert "diary_recent" in names and "gcal_agenda" in names
 
 
 def test_gcal_update_ambiguous_returns_candidates():

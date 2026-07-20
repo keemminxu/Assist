@@ -77,6 +77,23 @@ def test_reset_retry_rate_limited_continues_backoff():
     assert [m for _, m in r.calls] == ["sonnet", "sonnet", "sonnet", "haiku"]
 
 
+def test_ask_fresh_resets_before_asking():
+    """ask_fresh는 항상 빈 세션에서 시작한다 — 이전 대화·이전 글 컨텍스트가 남지 않는다."""
+    order = []
+
+    class Recorder:
+        async def ask(self, prompt, model):
+            order.append("ask")
+            return "ok"
+
+        async def reset(self):
+            order.append("reset")
+
+    brain = Brain(Recorder(), model="s", fallback_model="h")
+    assert run(brain.ask_fresh("hi")) == "ok"
+    assert order == ["reset", "ask"]
+
+
 def test_serial_queue_but_backoff_outside_lock():
     """첫 메시지가 백오프 대기 중일 때 두 번째 메시지가 끼어들 수 있다."""
     order = []

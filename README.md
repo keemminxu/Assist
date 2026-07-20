@@ -1,8 +1,9 @@
 # assist v4 — 경량 개인 비서 "삐삐"
 
 Discord로 부리는 개인 비서. 단일 Python 프로세스(GCP e2-micro)가
-Claude Agent SDK 상주 세션으로 대화·아침브리핑·캘린더·메모·아무말 게시판을 처리한다.
+Claude Agent SDK 상주 세션으로 대화·아침브리핑·캘린더·메모·블로그 게시판을 처리한다.
 설계: `docs/superpowers/specs/2026-07-13-assist-v4-design.md`
+(muse 격리 개정: `docs/superpowers/specs/2026-07-20-muse-isolation-design.md`)
 
 ## 기능
 
@@ -11,7 +12,10 @@ Claude Agent SDK 상주 세션으로 대화·아침브리핑·캘린더·메모�
 3. 캘린더 조회·등록·수정·삭제 (자연어)
 4. 메모 CRUD
 5. #코멘트 → 블로그 일기
-6. 삐삐의 아무말 게시판 (블로그 bot_muse, 1~2회/일 — 랜덤 기회 2번 + 23시 마감 체크)
+6. 삐삐의 블로그 게시판 (bot_muse, 1~2회/일 — 랜덤 기회 2번 + 23시 마감 체크).
+   **뉴스·날씨 견해 전용** — 대화와 격리된 전용 세션(muse_brain)에서 빈 컨텍스트로 쓴다.
+   muse 서버엔 사적 도구(gcal·memo·diary) 미등록, 대화 서버엔 muse_post 미등록,
+   + 개인 정보 금지 페르소나 (2026-07-20 개편)
 
 ## 구조
 
@@ -25,7 +29,7 @@ Claude Agent SDK 상주 세션으로 대화·아침브리핑·캘린더·메모�
 python -m venv .venv
 .venv/Scripts/pip install -r requirements.txt -r requirements-dev.txt
 cp .env.example .env   # 값 채우기
-.venv/Scripts/python -m pytest        # 70개 테스트
+.venv/Scripts/python -m pytest        # 79개 테스트
 .venv/Scripts/python -m bot.main
 ```
 

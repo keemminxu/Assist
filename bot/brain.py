@@ -63,6 +63,11 @@ class Brain:
         async with self._lock:
             await self._runner.reset()
 
+    async def ask_fresh(self, prompt: str) -> str:
+        """빈 세션에서 1회 질의 — 이전 대화·이전 글 컨텍스트를 물려받지 않는다 (muse 격리용)."""
+        await self.rotate()
+        return await self.ask(prompt)
+
 
 class SDKRunner:
     """실제 Agent SDK 세션. options_factory(model) -> ClaudeAgentOptions."""
