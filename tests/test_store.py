@@ -88,6 +88,17 @@ def test_muse_post_inserts_content():
     assert json.loads(reqs[0].content) == {"content": "오늘의 아무말"}
 
 
+def test_recent_posts_reads_bot_muse_desc_with_limit():
+    reqs = []
+    store = MuseStore("https://b.supabase.co", "k",
+                      transport=make_transport(reqs, [{"content": "글", "created_at": "t"}]))
+    rows = run(store.recent_posts())
+    assert rows == [{"content": "글", "created_at": "t"}]
+    assert reqs[0].url.path == "/rest/v1/bot_muse"
+    assert reqs[0].url.params["order"] == "created_at.desc"
+    assert reqs[0].url.params["limit"] == "8"
+
+
 def test_recent_diary_limits_and_orders_desc():
     reqs = []
     store = MuseStore("https://b.supabase.co", "k",

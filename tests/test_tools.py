@@ -130,9 +130,9 @@ def test_chat_tools_cannot_post_to_blog():
 
 
 def test_muse_tools_cannot_reach_private_data():
-    """muse(공개 블로그) 세션은 사적 데이터 도구에 접근 불가 — 나머지 절반."""
-    assert set(MUSE_ALLOWED_TOOLS) == {
-        "mcp__assist__muse_post", "mcp__assist__weather", "WebSearch"}
+    """muse(공개 블로그) 세션은 사적 데이터 도구에 접근 불가 — 나머지 절반.
+    weather도 없다: 1회 호출로 소재가 나오는 도구가 날씨 도배(2026-07 하순)의 원인이었다."""
+    assert set(MUSE_ALLOWED_TOOLS) == {"mcp__assist__muse_post", "WebSearch"}
 
 
 async def _fake_weather():
@@ -148,9 +148,9 @@ def server_tool_names(cfg):
 
 
 def test_build_muse_server_registers_only_public_safe_tools():
-    """muse 서버에는 사적 데이터 도구(gcal·memo·diary)가 아예 등록되지 않는다."""
-    cfg = build_muse_server(muse=FakeMuse(), weather_fn=_fake_weather)
-    assert server_tool_names(cfg) == ["muse_post", "weather"]
+    """muse 서버에는 muse_post 하나뿐 — 사적 도구는 물론 weather도 등록되지 않는다."""
+    cfg = build_muse_server(muse=FakeMuse())
+    assert server_tool_names(cfg) == ["muse_post"]
 
 
 def test_build_server_does_not_register_muse_post():

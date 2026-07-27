@@ -52,7 +52,7 @@ async def amain() -> None:
                                                  CHAT_ALLOWED_TOOLS)),
                   model=s.claude_model, fallback_model=s.claude_fallback_model)
     # muse는 대화와 격리된 전용 두뇌 — 사적 도구가 없는 서버 + 매번 빈 세션(ask_fresh).
-    muse_server = build_muse_server(muse=muse, weather_fn=weather_fn)
+    muse_server = build_muse_server(muse=muse)
     muse_brain = Brain(SDKRunner(make_options_factory(muse_server, prompts.MUSE_PERSONA,
                                                       MUSE_ALLOWED_TOOLS)),
                        model=s.claude_model, fallback_model=s.claude_fallback_model)
@@ -78,15 +78,22 @@ async def amain() -> None:
             reply = "아침 브리핑 만들다 넘어졌어 — 뉴스는 이따 직접 물어봐줘."
         await send_assist(reply)
 
+    async def muse_recent() -> list[dict]:
+        try:
+            return await muse.recent_posts()
+        except Exception:                             # noqa: BLE001 — 목록 없이도 글은 쓴다
+            log.exception("muse 최근 글 조회 실패 — 빈 목록으로 진행")
+            return []
+
     async def do_muse_chance() -> None:
         reply = await muse_brain.ask_fresh(
-            prompts.muse_chance_prompt(datetime.now(KST).date()))
+            prompts.muse_chance_prompt(datetime.now(KST).date(), await muse_recent()))
         log.info("muse 기회 결과: %s", reply[:80])
 
     async def do_muse_deadline() -> None:
         if await muse.count_today() == 0:
             reply = await muse_brain.ask_fresh(
-                prompts.muse_deadline_prompt(datetime.now(KST).date()))
+                prompts.muse_deadline_prompt(datetime.now(KST).date(), await muse_recent()))
             log.info("muse 마감 결과: %s", reply[:80])
 
     async def start_scheduler() -> None:

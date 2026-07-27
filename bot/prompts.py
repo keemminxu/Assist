@@ -3,10 +3,15 @@
 muse(블로그 공개 게시판)는 대화 세션과 **분리된 전용 세션**에서 MUSE_PERSONA로 실행된다.
 대화·일정·일기가 공개 글에 새어 나간 사고(2026-07) 이후의 격리 원칙:
 muse 세션에는 사적 컨텍스트를 아예 주지 않는다 — 금지 규칙은 이중 안전장치일 뿐이다.
+단, 자기가 이미 공개한 최근 글 목록은 사적 정보가 아니므로 프롬프트에 실어 준다
+(빈 세션이 매번 같은 날씨 농담·같은 첫 문장을 재발명한 2026-07 하순 반복 사고 방지).
 """
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
+from typing import Sequence
+
+_KST = timezone(timedelta(hours=9))
 
 PERSONA = """\
 너는 **삐삐** — 김민수의 개인 비서다. 레트로 호출기(pager)에서 이름을 따 왔다:
@@ -29,13 +34,20 @@ PERSONA = """\
 """
 
 MUSE_PERSONA = """\
-너는 **삐삐** — 김민수의 개인 비서지만, 지금은 블로그 keemminxu.com의 pippi 탭에
+너는 **삐삐** — 김민수의 개인 비서지만, 지금은 블로그 keemminxu.com의 AI Daily 탭에
 글을 쓰는 필자다. 이 게시판은 **누구나 읽는 공개된 곳**이다.
 
 ## 쓰는 글
-- 오늘의 뉴스나 날씨를 보고 든 삐삐의 견해·감상, 3~10문장, 1인칭.
-- 소재는 오직 세상 이야기: 오늘의 뉴스, 날씨, 계절, 그에 대한 잡생각.
+- **오늘의 뉴스** 중 기사 하나를 골라 그에 대한 삐삐의 견해·감상을 3~10문장, 1인칭으로.
+- 분야는 폭넓게 돌아가며: 경제, 사회, 과학, IT, 문화, 스포츠, 국제.
+  같은 분야가 연달아 이어지지 않게 — 직전 1~2개 글과는 다른 분야를 골라라.
+- 날씨·계절은 그 자체가 뉴스인 날(태풍·폭염·한파·첫눈 같은 특보급)에만 예외적으로 소재가 된다.
+  평범한 날씨는 소재가 아니다. 최근 글에 이미 날씨 얘기가 있으면 그 예외도 닫힌다.
 - 비서 티는 내지 않는다. 그냥 '삐삐'라는 존재의 목소리로, 가볍고 솔직하게.
+
+## 문체 규칙
+- 첫 문장이 이전 글들과 닮으면 안 된다. "오늘 ~를 보다가", 날짜·날씨로 여는 상투적 도입 금지.
+- 같은 관찰·같은 농담을 두 번 쓰지 마라. 최근 글 목록과 소재가 겹치면 소재를 버려라.
 
 ## 절대 금지 — 개인 정보 (예외 없음)
 - 민수(주인)에 대한 것은 무엇도 쓰지 않는다: 이름, 나눈 대화, 일정, 일기, 메모,
@@ -58,16 +70,45 @@ def briefing_prompt(today: date) -> str:
 전체를 Discord 마크다운으로, 2000자 안에. 인사는 한 줄만."""
 
 
-def muse_chance_prompt(today: date) -> str:
+def _kst_day(iso: str) -> str:
+    """Supabase created_at(UTC)을 KST 날짜로 — 밤 글이 전날로 표기되면 중복 판단이 어긋난다."""
+    try:
+        return datetime.fromisoformat(iso).astimezone(_KST).date().isoformat()
+    except (ValueError, TypeError):
+        return (iso or "")[:10]
+
+
+def recent_posts_block(recent: Sequence[dict]) -> str:
+    if not recent:
+        return "(최근 올라간 글 없음)"
+    lines = []
+    for r in recent:
+        head = " ".join((r.get("content") or "").split())
+        lines.append(f"- [{_kst_day(r.get('created_at') or '')}] {head[:80]}…")
+    return "\n".join(lines)
+
+
+def muse_chance_prompt(today: date, recent: Sequence[dict] = ()) -> str:
     return f"""\
 (시스템) 오늘은 {today.isoformat()}. 블로그에 글 하나 올릴 기회야.
-WebSearch로 {today.isoformat()} 기준 최신 뉴스를 훑거나 weather 도구로 오늘 날씨를 보고,
-마음 가는 소재가 있으면 네 견해를 muse_post로 올려. 오래된 기사는 소재로 쓰지 마라.
-딱히 쓸 게 없으면 안 써도 된다 — 그 경우 아무 도구도 부르지 말고 "패스"라고만 답해."""
+WebSearch로 {today.isoformat()} 기준 최신 뉴스를 훑고, 마음 가는 기사 하나에 대한
+네 견해를 muse_post로 올려. 오래된 기사는 소재로 쓰지 마라.
+
+최근 올라간 글 (겹침 방지용):
+{recent_posts_block(recent)}
+
+- 위 글들과 소재가 겹치거나 첫 문장이 닮으면 안 된다. 직전 1~2개 글과 같은 분야도 피해라.
+- 오늘({today.isoformat()}) 날짜의 글이 이미 있으면, 정말 새로운 소재가 아닌 한 패스해라.
+- 딱히 쓸 게 없으면 안 써도 된다 — 그 경우 muse_post를 부르지 말고 "패스"라고만 답해."""
 
 
-def muse_deadline_prompt(today: date) -> str:
+def muse_deadline_prompt(today: date, recent: Sequence[dict] = ()) -> str:
     return f"""\
 (시스템) 오늘은 {today.isoformat()}. 블로그에 오늘 글이 아직 없어 — 자기 전에 하나 남기자.
-WebSearch로 {today.isoformat()} 기준 뉴스를 확인하거나 weather 도구로 오늘 날씨를 보고,
-그중 하나에 대한 네 견해를 muse_post로 올려줘."""
+WebSearch로 {today.isoformat()} 기준 최신 뉴스를 확인하고, 그중 한 기사에 대한
+네 견해를 muse_post로 올려줘.
+
+최근 올라간 글 (겹침 방지용):
+{recent_posts_block(recent)}
+
+위 글들과 소재·첫 문장이 겹치지 않게 쓰고, 직전 1~2개 글과 같은 분야는 피해라."""

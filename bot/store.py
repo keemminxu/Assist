@@ -72,6 +72,13 @@ class MuseStore:
                                   headers={"Prefer": "return=minimal"})
         resp.raise_for_status()
 
+    async def recent_posts(self, n: int = 8) -> list[dict]:
+        """최근 공개 글 — muse 프롬프트에 실어 소재·첫 문장 반복을 막는다."""
+        resp = await self._c.get("/bot_muse", params={
+            "select": "content,created_at", "order": "created_at.desc", "limit": str(n)})
+        resp.raise_for_status()
+        return resp.json()
+
     async def recent_diary(self, n: int = 5) -> list[dict]:
         resp = await self._c.get("/daily_logs", params={
             "select": "content,created_at", "order": "created_at.desc", "limit": str(n)})

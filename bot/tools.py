@@ -19,7 +19,9 @@ MUSE_DAILY_LIMIT = 2
 _PRIVATE_TOOLS = ("gcal_agenda", "gcal_add", "gcal_update", "gcal_delete",
                   "memo_add", "memo_list", "memo_update", "memo_delete", "diary_recent")
 CHAT_ALLOWED_TOOLS = [f"mcp__assist__{n}" for n in (*_PRIVATE_TOOLS, "weather")] + ["WebSearch"]
-MUSE_ALLOWED_TOOLS = ["mcp__assist__muse_post", "mcp__assist__weather", "WebSearch"]
+# muse에 weather 없음 — 날씨 도배 사고(2026-07 하순)의 원인이 "1회 호출로 소재가 나오는"
+# 손쉬운 도구였다. 특보급 날씨는 어차피 WebSearch 뉴스로 잡힌다.
+MUSE_ALLOWED_TOOLS = ["mcp__assist__muse_post", "WebSearch"]
 
 
 def _text(s: str) -> dict:
@@ -176,17 +178,12 @@ def build_server(*, gcal, memos, muse, weather_fn):
     ])
 
 
-def build_muse_server(*, muse, weather_fn):
+def build_muse_server(*, muse):
     """muse 전용 서버 — 공개 블로그 세션에는 사적 데이터 도구(gcal·memo·diary)를
-    allowed_tools 이전에 서버 차원에서 아예 등록하지 않는다."""
-
-    @tool("weather", "현재 날씨 1줄 (서울 기준)", {})
-    async def weather(args):
-        return await handle_weather(weather_fn, args)
+    allowed_tools 이전에 서버 차원에서 아예 등록하지 않는다. weather도 없다(위 주석)."""
 
     @tool("muse_post", "블로그 게시판에 글 작성 (하루 2회 상한)", {"content": str})
     async def muse_post(args):
         return await handle_muse_post(muse, args)
 
-    return create_sdk_mcp_server(name="assist", version="1.0.0",
-                                 tools=[weather, muse_post])
+    return create_sdk_mcp_server(name="assist", version="1.0.0", tools=[muse_post])
